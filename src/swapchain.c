@@ -2,107 +2,47 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-VsSwapchain *vs_swapchain_create(VsDevice *device, VkSurfaceKHR surface,
-                                 uint32_t width, uint32_t height) {
-  VsSwapchain *swapchain = malloc(sizeof(VsSwapchain));
-  if (!swapchain) {
-    fprintf(stderr, "failed to allocate swapchain\n");
-    return NULL;
-  }
-
-  swapchain->device = device->device;
-
-  VkSurfaceCapabilitiesKHR caps;
-  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device->physical, surface, &caps);
-
-  if (caps.currentExtent.width != UINT32_MAX) {
-    swapchain->extent = caps.currentExtent;
-  } else {
-    swapchain->extent.width =
-        width < caps.minImageExtent.width   ? caps.minImageExtent.width
-        : width > caps.maxImageExtent.width ? caps.maxImageExtent.width
-                                            : width;
-    swapchain->extent.height =
-        height < caps.minImageExtent.height   ? caps.minImageExtent.height
-        : height > caps.maxImageExtent.height ? caps.maxImageExtent.height
-                                              : height;
-  }
-
-  uint32_t formatCount = 0;
-  vkGetPhysicalDeviceSurfaceFormatsKHR(device->physical, surface, &formatCount,
-                                       NULL);
-  VkSurfaceFormatKHR *formats =
-      malloc(formatCount * sizeof(VkSurfaceFormatKHR));
-  vkGetPhysicalDeviceSurfaceFormatsKHR(device->physical, surface, &formatCount,
-                                       formats);
-
-  VkSurfaceFormatKHR surfaceFormat = formats[0];
-  for (uint32_t i = 0; i < formatCount; i++) {
+static VkSurfaceFormatKHR pick_format(VkSurfaceFormatKHR *formats,
+                                      uint32_t count) {
+  for (uint32_t i = 0; i < count; i++)
     if (formats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
-        formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
-      surfaceFormat = formats[i];
-      break;
-    }
-  }
-  free(formats);
-  swapchain->format = surfaceFormat.format;
+        formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+      return formats[i];
+  return formats[0];
+}
 
-  uint32_t modeCount = 0;
-  vkGetPhysicalDeviceSurfacePresentModesKHR(device->physical, surface,
-                                            &modeCount, NULL);
-  VkPresentModeKHR *modes = malloc(modeCount * sizeof(VkPresentModeKHR));
-  vkGetPhysicalDeviceSurfacePresentModesKHR(device->physical, surface,
-                                            &modeCount, modes);
+static VkPresentModeKHR pick_present_mode(VkPresentModeKHR *modes,
+                                          uint32_t count) {
+  for (uint32_t i = 0; i < count; i++)
+    if (modes[i] == VK_PRESENT_MODE_MAILBOX_KHR)
+      return modes[i];
+  return VK_PRESENT_MODE_FIFO_KHR;
+}
 
-  VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
-  for (uint32_t i = 0; i < modeCount; i++) {
-    if (modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
-      presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
-      break;
-    }
-  }
-  free(modes);
+static VkExtent2D pick_extent(const VkSurfaceCapabilitiesKHR *caps,
+                              uint32_t width, uint32_t height) {
+  if (caps->currentExtent.width != UINT32_MAX)
+    return caps->currentExtent;
 
-  uint32_t imageCount = caps.minImageCount + 1;
-  if (caps.maxImageCount > 0 && imageCount > caps.maxImageCount)
-    imageCount = caps.maxImageCount;
-
-  VkSwapchainCreateInfoKHR createInfo = {
-      .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-      .surface = surface,
-      .minImageCount = imageCount,
-      .imageFormat = surfaceFormat.format,
-      .imageColorSpace = surfaceFormat.colorSpace,
-      .imageExtent = swapchain->extent,
-      .imageArrayLayers = 1,
-      .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-      .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
-      .preTransform = caps.currentTransform,
-      .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-      .presentMode = presentMode,
-      .clipped = VK_TRUE,
+#define CLAMP(v, lo, hi) ((v) < (lo) ? (lo) : (v) > (hi) ? (hi) : (v))
+  return (VkExtent2D){
+      .width =
+          CLAMP(width, caps->minImageExtent.width, caps->maxImageExtent.width),
+      .height = CLAMP(height, caps->minImageExtent.height,
+                      caps->maxImageExtent.height),
   };
+#undef CLAMP
+}
 
-  if (vkCreateSwapchainKHR(device->device, &createInfo, NULL,
-                           &swapchain->handle) != VK_SUCCESS) {
-    fprintf(stderr, "failed to create swapchain\n");
-    free(swapchain);
-    return NULL;
-  }
-
-  vkGetSwapchainImagesKHR(device->device, swapchain->handle, &swapchain->count,
-                          NULL);
-  swapchain->images = malloc(swapchain->count * sizeof(VkImage));
-  vkGetSwapchainImagesKHR(device->device, swapchain->handle, &swapchain->count,
-                          swapchain->images);
-
-  swapchain->views = malloc(swapchain->count * sizeof(VkImageView));
-  for (uint32_t i = 0; i < swapchain->count; i++) {
-    VkImageViewCreateInfo viewInfo = {
+// create image views for all swapchain images; if any fail, clean up and return
+// -1
+static int create_views(VsSwapchain *sc) {
+  for (uint32_t i = 0; i < sc->count; i++) {
+    VkImageViewCreateInfo vi = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = swapchain->images[i],
+        .image = sc->images[i],
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = swapchain->format,
+        .format = sc->format,
         .subresourceRange =
             {
                 .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -112,29 +52,156 @@ VsSwapchain *vs_swapchain_create(VsDevice *device, VkSurfaceKHR surface,
                 .layerCount = 1,
             },
     };
-    if (vkCreateImageView(device->device, &viewInfo, NULL,
-                          &swapchain->views[i]) != VK_SUCCESS) {
-      fprintf(stderr, "failed to create image view\n");
+    if (vkCreateImageView(sc->device, &vi, NULL, &sc->views[i]) != VK_SUCCESS) {
+      fprintf(stderr, "failed to create image view %u\n", i);
       for (uint32_t j = 0; j < i; j++)
-        vkDestroyImageView(device->device, swapchain->views[j], NULL);
-      vkDestroySwapchainKHR(device->device, swapchain->handle, NULL);
-      free(swapchain->images);
-      free(swapchain->views);
-      free(swapchain);
-      return NULL;
+        vkDestroyImageView(sc->device, sc->views[j], NULL);
+      return -1;
     }
   }
-
-  return swapchain;
+  return 0;
 }
 
-void vs_swapchain_destroy(VsSwapchain *swapchain) {
-  if (!swapchain)
+// Build a swapchain with the given parameters,
+// optionally reusing resources from an old swapchain. Returns 0 on success, -1
+// on failure.
+static int swapchain_build(VsSwapchain *sc, VsDevice *device, uint32_t width,
+                           uint32_t height, VkSwapchainKHR old) {
+  VkSurfaceCapabilitiesKHR caps;
+  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device->physical, sc->surface,
+                                            &caps);
+
+  uint32_t fmtCount = 0;
+  VkSurfaceFormatKHR *fmts = NULL;
+  vkGetPhysicalDeviceSurfaceFormatsKHR(device->physical, sc->surface, &fmtCount,
+                                       NULL);
+  fmts = malloc(fmtCount * sizeof *fmts);
+  vkGetPhysicalDeviceSurfaceFormatsKHR(device->physical, sc->surface, &fmtCount,
+                                       fmts);
+
+  uint32_t modeCount = 0;
+  VkPresentModeKHR *modes = NULL;
+  vkGetPhysicalDeviceSurfacePresentModesKHR(device->physical, sc->surface,
+                                            &modeCount, NULL);
+  modes = malloc(modeCount * sizeof *modes);
+  vkGetPhysicalDeviceSurfacePresentModesKHR(device->physical, sc->surface,
+                                            &modeCount, modes);
+
+  VkSurfaceFormatKHR fmt = pick_format(fmts, fmtCount);
+  VkPresentModeKHR mode = pick_present_mode(modes, modeCount);
+  VkExtent2D ext = pick_extent(&caps, width, height);
+  free(fmts);
+  free(modes);
+
+  uint32_t imageCount = caps.minImageCount + 1;
+  if (caps.maxImageCount > 0 && imageCount > caps.maxImageCount)
+    imageCount = caps.maxImageCount;
+
+  uint32_t queueIndices[] = {device->graphicsFamily, device->presentFamily};
+
+  VkSwapchainCreateInfoKHR ci = {
+      .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+      .surface = sc->surface,
+      .minImageCount = imageCount,
+      .imageFormat = fmt.format,
+      .imageColorSpace = fmt.colorSpace,
+      .imageExtent = ext,
+      .imageArrayLayers = 1,
+      .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+      .preTransform = caps.currentTransform,
+      .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+      .presentMode = mode,
+      .clipped = VK_TRUE,
+      .oldSwapchain = old,
+  };
+
+  // if two images are used across multiple queue families, we either have to
+  // explicitly transfer ownership between the queues or we can create the
+  // swapchain with concurrent sharing mode. We choose the latter in this
+  // example for simplicity.
+  if (device->graphicsFamily != device->presentFamily) {
+    ci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+    ci.queueFamilyIndexCount = 2;
+    ci.pQueueFamilyIndices = queueIndices;
+  } else {
+    ci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  }
+
+  if (vkCreateSwapchainKHR(device->device, &ci, NULL, &sc->handle) !=
+      VK_SUCCESS) {
+    fprintf(stderr, "failed to create swapchain\n");
+    return -1;
+  }
+
+  sc->format = fmt.format;
+  sc->extent = ext;
+  sc->device = device->device;
+
+  vkGetSwapchainImagesKHR(device->device, sc->handle, &sc->count, NULL);
+  sc->images = malloc(sc->count * sizeof *sc->images);
+  sc->views = malloc(sc->count * sizeof *sc->views);
+  vkGetSwapchainImagesKHR(device->device, sc->handle, &sc->count, sc->images);
+
+  if (create_views(sc) != 0) {
+    vkDestroySwapchainKHR(device->device, sc->handle, NULL);
+    free(sc->images);
+    free(sc->views);
+    sc->images = NULL;
+    sc->views = NULL;
+    return -1;
+  }
+
+  return 0;
+}
+
+VsSwapchain *vs_swapchain_create(VsDevice *device, VkSurfaceKHR surface,
+                                 uint32_t width, uint32_t height) {
+  VsSwapchain *sc = malloc(sizeof *sc);
+  if (!sc) {
+    fprintf(stderr, "failed to allocate swapchain\n");
+    return NULL;
+  }
+
+  sc->surface = surface;
+  sc->images = NULL;
+  sc->views = NULL;
+  sc->handle = VK_NULL_HANDLE;
+
+  if (swapchain_build(sc, device, width, height, VK_NULL_HANDLE) != 0) {
+    free(sc);
+    return NULL;
+  }
+  return sc;
+}
+
+void vs_swapchain_recreate(VsSwapchain *sc, VsDevice *device, uint32_t width,
+                           uint32_t height) {
+  if (!sc)
     return;
-  for (uint32_t i = 0; i < swapchain->count; i++)
-    vkDestroyImageView(swapchain->device, swapchain->views[i], NULL);
-  vkDestroySwapchainKHR(swapchain->device, swapchain->handle, NULL);
-  free(swapchain->images);
-  free(swapchain->views);
-  free(swapchain);
+
+  // destroy old image views
+  for (uint32_t i = 0; i < sc->count; i++)
+    vkDestroyImageView(sc->device, sc->views[i], NULL);
+  free(sc->images);
+  free(sc->views);
+  sc->images = NULL;
+  sc->views = NULL;
+
+  VkSwapchainKHR old = sc->handle;
+  sc->handle = VK_NULL_HANDLE;
+
+  swapchain_build(sc, device, width, height, old);
+
+  vkDestroySwapchainKHR(sc->device, old, NULL);
+}
+
+void vs_swapchain_destroy(VsSwapchain *sc) {
+  if (!sc)
+    return;
+  for (uint32_t i = 0; i < sc->count; i++)
+    vkDestroyImageView(sc->device, sc->views[i], NULL);
+  vkDestroySwapchainKHR(sc->device, sc->handle, NULL);
+  free(sc->images);
+  free(sc->views);
+  free(sc);
 }

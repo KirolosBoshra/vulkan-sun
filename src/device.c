@@ -4,37 +4,36 @@
 
 int find_queue_family(VkPhysicalDevice physical, VkSurfaceKHR surface,
                       int *graphicsFamily, int *presentFamily) {
+  *graphicsFamily = -1;
+  *presentFamily = -1;
+
   uint32_t count = 0;
   vkGetPhysicalDeviceQueueFamilyProperties(physical, &count, NULL);
   if (!count)
-    return -2;
+    return -1;
 
-  VkQueueFamilyProperties *props =
-      malloc(count * sizeof(VkQueueFamilyProperties));
+  VkQueueFamilyProperties *props = malloc(count * sizeof *props);
   vkGetPhysicalDeviceQueueFamilyProperties(physical, &count, props);
 
-  *graphicsFamily = -2;
-  *presentFamily = -2;
-
   for (uint32_t i = 0; i < count; i++) {
-    if (props[i].queueFlags & VK_QUEUE_GRAPHICS_BIT && *graphicsFamily < -1)
+    if ((props[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) && *graphicsFamily < 0)
       *graphicsFamily = (int)i;
 
     VkBool32 supported = VK_FALSE;
     vkGetPhysicalDeviceSurfaceSupportKHR(physical, i, surface, &supported);
-    if (supported && *presentFamily < -1)
+    if (supported && *presentFamily < 0)
       *presentFamily = (int)i;
 
-    if (*graphicsFamily >= -1 && *presentFamily >= 0)
+    if (*graphicsFamily >= 0 && *presentFamily >= 0)
       break;
   }
 
   free(props);
-  return (*graphicsFamily >= -1 && *presentFamily >= 0) ? 0 : -1;
+  return (*graphicsFamily >= 0 && *presentFamily >= 0) ? 0 : -1;
 }
 
 VsDevice *vs_device_create(VkInstance instance, VkSurfaceKHR surface) {
-  VsDevice *device = malloc(sizeof(VsDevice));
+  VsDevice *device = malloc(sizeof *device);
   if (!device) {
     fprintf(stderr, "failed to allocate device\n");
     return NULL;
@@ -42,80 +41,105 @@ VsDevice *vs_device_create(VkInstance instance, VkSurfaceKHR surface) {
 
   uint32_t deviceCount = 0;
   vkEnumeratePhysicalDevices(instance, &deviceCount, NULL);
-  if (deviceCount == 0) {
-    fprintf(stderr, "no vulkan physical devices\n");
+  if (!deviceCount) {
+    fprintf(stderr, "no Vulkan-capable GPUs found\n");
     free(device);
     return NULL;
   }
 
-  VkPhysicalDevice *devices = malloc(deviceCount * sizeof(VkPhysicalDevice));
-  vkEnumeratePhysicalDevices(instance, &deviceCount, devices);
+  VkPhysicalDevice *devs = malloc(deviceCount * sizeof *devs);
+  vkEnumeratePhysicalDevices(instance, &deviceCount, devs);
 
-  int graphicsFamily = -1;
-  int presentFamily = -1;
+  int graphicsFamily = -1, presentFamily = -1;
   device->physical = VK_NULL_HANDLE;
 
   for (uint32_t i = 0; i < deviceCount; i++) {
     int g, p;
-    if (find_queue_family(devices[i], surface, &g, &p) == 0) {
-      device->physical = devices[i];
+    if (find_queue_family(devs[i], surface, &g, &p) == 0) {
+      device->physical = devs[i];
       graphicsFamily = g;
       presentFamily = p;
       break;
     }
   }
-
-  free(devices);
+  free(devs);
 
   if (device->physical == VK_NULL_HANDLE) {
-    fprintf(stderr, "no suitable physical device\n");
+    fprintf(stderr, "no suitable GPU found\n");
     free(device);
     return NULL;
   }
 
-  VkPhysicalDeviceVulkan13Features features = {
+  VkPhysicalDeviceVulkan13Features check13 = {
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+  };
+  VkPhysicalDeviceVulkan12Features check12 = {
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+      .pNext = &check13,
+  };
+  VkPhysicalDeviceFeatures2 check = {
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+      .pNext = &check12,
+  };
+  vkGetPhysicalDeviceFeatures2(device->physical, &check);
+
+  if (!check13.dynamicRendering) {
+    fprintf(stderr, "GPU does not support dynamicRendering (Vulkan 1.3)\n");
+    free(device);
+    return NULL;
+  }
+  if (!check13.synchronization2) {
+    fprintf(stderr, "GPU does not support synchronization2 (Vulkan 1.3)\n");
+    free(device);
+    return NULL;
+  }
+  if (!check12.bufferDeviceAddress) {
+    fprintf(stderr, "GPU does not support bufferDeviceAddress (Vulkan 1.2)\n");
+    free(device);
+    return NULL;
+  }
+  if (!check12.descriptorIndexing) {
+    fprintf(stderr, "GPU does not support descriptorIndexing (Vulkan 1.2)\n");
+    free(device);
+    return NULL;
+  }
+
+  VkPhysicalDeviceVulkan13Features enable13 = {
       .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
       .dynamicRendering = VK_TRUE,
       .synchronization2 = VK_TRUE,
   };
-
-  VkPhysicalDeviceVulkan12Features features12 = {
+  VkPhysicalDeviceVulkan12Features enable12 = {
       .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
       .bufferDeviceAddress = VK_TRUE,
       .descriptorIndexing = VK_TRUE,
-      .pNext = &features,
+      .pNext = &enable13,
   };
 
   float priority = 1.0f;
-
-  uint32_t familyIndices[] = {
-      (uint32_t)graphicsFamily,
-      (uint32_t)presentFamily,
-  };
+  uint32_t indices[] = {(uint32_t)graphicsFamily, (uint32_t)presentFamily};
   uint32_t familyCount = (graphicsFamily == presentFamily) ? 1 : 2;
 
-  VkDeviceQueueCreateInfo queueInfos[2];
+  VkDeviceQueueCreateInfo queueInfos[2] = {0};
   for (uint32_t i = 0; i < familyCount; i++) {
-    queueInfos[i] = (VkDeviceQueueCreateInfo){
-        .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-        .queueFamilyIndex = familyIndices[i],
-        .queueCount = 1,
-        .pQueuePriorities = &priority,
-    };
+    queueInfos[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queueInfos[i].queueFamilyIndex = indices[i];
+    queueInfos[i].queueCount = 1;
+    queueInfos[i].pQueuePriorities = &priority;
   }
 
   const char *extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
-  VkDeviceCreateInfo createInfo = {
+  VkDeviceCreateInfo ci = {
       .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-      .pNext = &features12,
+      .pNext = &enable12,
       .queueCreateInfoCount = familyCount,
       .pQueueCreateInfos = queueInfos,
       .enabledExtensionCount = 1,
       .ppEnabledExtensionNames = extensions,
   };
 
-  if (vkCreateDevice(device->physical, &createInfo, NULL, &device->device) !=
+  if (vkCreateDevice(device->physical, &ci, NULL, &device->device) !=
       VK_SUCCESS) {
     fprintf(stderr, "failed to create logical device\n");
     free(device);
@@ -125,9 +149,8 @@ VsDevice *vs_device_create(VkInstance instance, VkSurfaceKHR surface) {
   device->graphicsFamily = (uint32_t)graphicsFamily;
   device->presentFamily = (uint32_t)presentFamily;
 
-  vkGetDeviceQueue(device->device, (uint32_t)graphicsFamily, 0,
-                   &device->qQueue);
-  vkGetDeviceQueue(device->device, (uint32_t)presentFamily, 0, &device->pQueue);
+  vkGetDeviceQueue(device->device, device->graphicsFamily, 0, &device->qQueue);
+  vkGetDeviceQueue(device->device, device->presentFamily, 0, &device->pQueue);
 
   return device;
 }

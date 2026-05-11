@@ -5,24 +5,24 @@
 #include "swapchain.h"
 #include "utils/color.h"
 
+#define VS_MAX_FRAMES_IN_FLIGHT 2
+
 typedef struct {
-  VkRenderPass renderPass;
-  VkFramebuffer *framebuffers;
   VkCommandPool cmdPool;
-  VkCommandBuffer cmdBuffer;
-  VkSemaphore imageAvailable;
-  VkSemaphore renderFinished;
-  VkFence inFlight;
+  VkCommandBuffer cmdBufs[VS_MAX_FRAMES_IN_FLIGHT];
+  VkSemaphore imageAvailable[VS_MAX_FRAMES_IN_FLIGHT];
+  VkSemaphore renderFinished[VS_MAX_FRAMES_IN_FLIGHT];
+  VkFence inFlight[VS_MAX_FRAMES_IN_FLIGHT];
   VkClearValue clearColor;
+  uint32_t currentFrame;
 } VsRenderer;
 
-VsRenderer *vs_renderer_create(VsDevice *device, VsSwapchain *swapchain);
+VsRenderer *vs_renderer_create(VsDevice *device);
 
-void vs_renderer_destroy(VsRenderer *renderer, VsDevice *device,
-                         VsSwapchain *swapchain);
+void vs_renderer_destroy(VsRenderer *renderer, VsDevice *device);
 
 void vs_renderer_set_clear_color(VsRenderer *renderer, VsColor color);
-void vs_renderer_draw(VsRenderer *renderer, VsDevice *device,
-                      VsSwapchain *swapchain);
+int vs_renderer_draw(VsRenderer *renderer, VsDevice *device,
+                     VsSwapchain *swapchain);
 
 #endif // RENDERER_H

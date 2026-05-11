@@ -12,10 +12,13 @@ typedef struct {
   VkExtent2D extent;
   uint32_t count;
   VkDevice device;
+  VkSurfaceKHR surface;
 } VsSwapchain;
 
 VsSwapchain *vs_swapchain_create(VsDevice *device, VkSurfaceKHR surface,
-                                uint32_t width, uint32_t height);
+                                 uint32_t width, uint32_t height);
+void vs_swapchain_recreate(VsSwapchain *swapchain, VsDevice *device,
+                           uint32_t width, uint32_t height);
 void vs_swapchain_destroy(VsSwapchain *swapchain);
 
 #endif // SWAPCHAIN_H

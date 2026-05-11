@@ -33,7 +33,7 @@ int main(void) {
   while (!vs_window_should_close(window)) {
     glfwPollEvents();
     vs_app_set_clear_color(app, VS_COLOR_BLUE);
-    vs_app_draw(app);
+    vs_app_draw(app, window);
   }
 
   vs_window_destroy(window);

@@ -58,7 +58,7 @@ void vs_app_setup(VsApp *app, VkSurfaceKHR surface, uint32_t width,
     return;
   }
 
-  app->renderer = vs_renderer_create(app->device, app->swapchain);
+  app->renderer = vs_renderer_create(app->device);
   if (!app->renderer) {
     vs_swapchain_destroy(app->swapchain);
     app->swapchain = NULL;
@@ -75,7 +75,7 @@ void vs_app_destroy(VsApp *app) {
     vkDeviceWaitIdle(app->device->device);
 
   if (app->renderer)
-    vs_renderer_destroy(app->renderer, app->device, app->swapchain);
+    vs_renderer_destroy(app->renderer, app->device);
   if (app->swapchain)
     vs_swapchain_destroy(app->swapchain);
   if (app->device)
@@ -91,10 +91,24 @@ void vs_app_set_clear_color(VsApp *app, VsColor color) {
   vs_renderer_set_clear_color(app->renderer, color);
 }
 
-void vs_app_draw(VsApp *app) {
+void vs_app_draw(VsApp *app, VsWindow *window) {
   if (!app || !app->renderer || !app->device || !app->swapchain)
     return;
-  vs_renderer_draw(app->renderer, app->device, app->swapchain);
+
+  int result = vs_renderer_draw(app->renderer, app->device, app->swapchain);
+
+  if (result == 1 || window->resized) {
+    window->resized = 0;
+
+    uint32_t w = 0, h = 0;
+    while (!w || !h) {
+      vs_window_get_size(window, &w, &h);
+      glfwWaitEvents();
+    }
+
+    vkDeviceWaitIdle(app->device->device);
+    vs_swapchain_recreate(app->swapchain, app->device, w, h);
+  }
 }
 
 const char *vs_app_gpu_name(VsApp *app) {
