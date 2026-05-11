@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(vulken_sun LANGUAGES C)
+project(vulkan_sun LANGUAGES C)
 
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -36,16 +36,16 @@ mark_as_advanced(GLFW_INCLUDE_DIR GLFW_LIBRARY GLFW_DLL)
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS src/*.c)
 file(GLOB_RECURSE HEADERS CONFIGURE_DEPENDS src/*.h)
 
-add_executable(vulken_sun ${SOURCES} ${HEADERS})
+add_executable(vulkan_sun ${SOURCES} ${HEADERS})
 
-target_include_directories(vulken_sun PRIVATE src ${GLFW_INCLUDE_DIR})
-target_link_libraries(vulken_sun PRIVATE Vulkan::Vulkan ${GLFW_LIBRARY} gdi32)
+target_include_directories(vulkan_sun PRIVATE src ${GLFW_INCLUDE_DIR})
+target_link_libraries(vulkan_sun PRIVATE Vulkan::Vulkan ${GLFW_LIBRARY} gdi32)
 
 if(GLFW_DLL)
-    add_custom_command(TARGET vulken_sun POST_BUILD
+    add_custom_command(TARGET vulkan_sun POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${GLFW_DLL}"
-            "$<TARGET_FILE_DIR:vulken_sun>"
+            "$<TARGET_FILE_DIR:vulkan_sun>"
         COMMENT "Copy glfw3.dll to output dir")
 endif()
 
