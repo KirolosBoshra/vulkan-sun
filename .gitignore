@@ -1,0 +1,12 @@
+build/
+CMakeUserPresets.json
+compile_commands.json
+.vscode/
+.idea/
+*.dll
+*.lib
+*.a
+*.obj
+*.exe
+*.pdb
+*.ilk
