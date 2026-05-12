@@ -15,6 +15,7 @@ VsApp *vs_app_create(const char *name, uint32_t version) {
   app->device = NULL;
   app->swapchain = NULL;
   app->renderer = NULL;
+  app->pipelineCount = 0;
 
   uint32_t extCount = 0;
   const char **extensions = glfwGetRequiredInstanceExtensions(&extCount);
@@ -80,6 +81,9 @@ void vs_app_destroy(VsApp *app) {
   if (app->device)
     vkDeviceWaitIdle(app->device->device);
 
+  for (uint32_t i = 0; i < app->pipelineCount; i++)
+    vs_pipeline_destroy(app->pipelines[i], app->device->device);
+
   if (app->renderer)
     vs_renderer_destroy(app->renderer, app->device);
   if (app->swapchain)
@@ -91,32 +95,6 @@ void vs_app_destroy(VsApp *app) {
   free(app);
 }
 
-void vs_app_set_clear_color(VsApp *app, VsColor color) {
-  if (!app || !app->renderer)
-    return;
-  vs_renderer_set_clear_color(app->renderer, color);
-}
-
-void vs_app_draw(VsApp *app, VsWindow *window) {
-  if (!app || !app->renderer || !app->device || !app->swapchain)
-    return;
-
-  int result = vs_renderer_draw(app->renderer, app->device, app->swapchain);
-
-  if (result == 1 || window->resized) {
-    window->resized = 0;
-
-    uint32_t w = 0, h = 0;
-    while (!w || !h) {
-      vs_window_get_size(window, &w, &h);
-      glfwWaitEvents();
-    }
-
-    vkDeviceWaitIdle(app->device->device);
-    vs_swapchain_recreate(app->swapchain, app->device, w, h);
-  }
-}
-
 const char *vs_app_gpu_name(VsApp *app) {
   if (!app || !app->device)
     return "unknown";
@@ -126,4 +104,65 @@ const char *vs_app_gpu_name(VsApp *app) {
   vkGetPhysicalDeviceProperties(app->device->physical, &props);
   memcpy(name, props.deviceName, VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
   return name;
+}
+
+int vs_add_pipeline(VsApp *app, const char *vertPath, const char *fragPath) {
+  if (!app || app->pipelineCount >= VS_MAX_PIPELINES)
+    return -1;
+
+  VsShader vert = vs_shader_create(app->device->device,
+                                    VK_SHADER_STAGE_VERTEX_BIT, vertPath);
+  VsShader frag = vs_shader_create(app->device->device,
+                                    VK_SHADER_STAGE_FRAGMENT_BIT, fragPath);
+
+  VsPipeline *p = vs_pipeline_create(app->device->device,
+                                      app->swapchain->format, vert, frag);
+
+  vs_shader_destroy(app->device->device, &vert);
+  vs_shader_destroy(app->device->device, &frag);
+
+  if (!p)
+    return -1;
+
+  int idx = (int)app->pipelineCount;
+  app->pipelines[idx] = p;
+  app->pipelineCount++;
+  return idx;
+}
+
+void vs_clear(VsApp *app, VsColor color) {
+  if (!app || !app->renderer)
+    return;
+  vs_renderer_set_clear_color(app->renderer, color);
+}
+
+int vs_frame_begin(VsApp *app) {
+  if (!app || !app->renderer || !app->device || !app->swapchain)
+    return -1;
+  return vs_renderer_frame_begin(app->renderer, app->device, app->swapchain);
+}
+
+void vs_draw(VsApp *app, int pipelineIndex) {
+  if (!app || !app->renderer || pipelineIndex < 0 ||
+      pipelineIndex >= (int)app->pipelineCount)
+    return;
+  vs_renderer_draw(app->renderer, app->pipelines[pipelineIndex],
+                   app->swapchain->extent);
+}
+
+int vs_frame_end(VsApp *app) {
+  if (!app || !app->renderer || !app->device || !app->swapchain)
+    return -1;
+  return vs_renderer_frame_end(app->renderer, app->device, app->swapchain);
+}
+
+void vs_app_resize(VsApp *app, VsWindow *window) {
+  if (!app || !window)
+    return;
+  uint32_t w = 0, h = 0;
+  vs_window_get_size(window, &w, &h);
+  if (w && h) {
+    vkDeviceWaitIdle(app->device->device);
+    vs_swapchain_recreate(app->swapchain, app->device, w, h);
+  }
 }

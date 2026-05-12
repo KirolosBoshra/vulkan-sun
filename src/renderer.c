@@ -2,9 +2,8 @@
 #include "logger.h"
 #include <stdlib.h>
 
-// Helper function to transition image layouts
 static void image_barrier(VkCommandBuffer cmd, VkImage image,
-                          VkImageLayout from, VkImageLayout to) {
+                           VkImageLayout from, VkImageLayout to) {
   VkImageMemoryBarrier2 b = {
       .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
       .srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
@@ -77,9 +76,9 @@ VsRenderer *vs_renderer_create(VsDevice *device) {
 
   for (int i = 0; i < VS_MAX_FRAMES_IN_FLIGHT; i++) {
     if (vkCreateSemaphore(device->device, &semInfo, NULL,
-                          &r->imageAvailable[i]) != VK_SUCCESS ||
+                           &r->imageAvailable[i]) != VK_SUCCESS ||
         vkCreateSemaphore(device->device, &semInfo, NULL,
-                          &r->renderFinished[i]) != VK_SUCCESS ||
+                           &r->renderFinished[i]) != VK_SUCCESS ||
         vkCreateFence(device->device, &fenceInfo, NULL, &r->inFlight[i]) !=
             VK_SUCCESS) {
       vs_log_error("failed to create sync objects for frame %d", i);
@@ -102,8 +101,6 @@ void vs_renderer_destroy(VsRenderer *renderer, VsDevice *device) {
   vs_log_trace("destroying renderer");
   if (!renderer)
     return;
-  if (renderer->pipeline)
-    vs_pipeline_destroy(renderer->pipeline, device->device);
   for (int i = 0; i < VS_MAX_FRAMES_IN_FLIGHT; i++) {
     vkDestroyFence(device->device, renderer->inFlight[i], NULL);
     vkDestroySemaphore(device->device, renderer->renderFinished[i], NULL);
@@ -113,36 +110,14 @@ void vs_renderer_destroy(VsRenderer *renderer, VsDevice *device) {
   free(renderer);
 }
 
-int vs_renderer_create_pipeline(VsRenderer *renderer, VsDevice *device,
-                                VkFormat colorFormat, const char *vertPath,
-                                const char *fragPath) {
-  vs_log_trace("loading shaders and creating pipeline");
-
-  if (!renderer)
-    return 0;
-
-  VsShader vert =
-      vs_shader_create(device->device, VK_SHADER_STAGE_VERTEX_BIT, vertPath);
-  VsShader frag =
-      vs_shader_create(device->device, VK_SHADER_STAGE_FRAGMENT_BIT, fragPath);
-
-  renderer->pipeline =
-      vs_pipeline_create(device->device, colorFormat, vert, frag);
-
-  vs_shader_destroy(device->device, &vert);
-  vs_shader_destroy(device->device, &frag);
-
-  return renderer->pipeline ? 1 : 0;
-}
-
 void vs_renderer_set_clear_color(VsRenderer *renderer, VsColor color) {
   if (!renderer)
     return;
   renderer->clearColor = vs_color_clear_value(color);
 }
 
-int vs_renderer_draw(VsRenderer *renderer, VsDevice *device,
-                     VsSwapchain *swapchain) {
+int vs_renderer_frame_begin(VsRenderer *renderer, VsDevice *device,
+                    VsSwapchain *swapchain) {
   uint32_t frame = renderer->currentFrame;
 
   vkWaitForFences(device->device, 1, &renderer->inFlight[frame], VK_TRUE,
@@ -159,6 +134,8 @@ int vs_renderer_draw(VsRenderer *renderer, VsDevice *device,
     vs_log_error("vkAcquireNextImageKHR failed");
     return -1;
   }
+
+  renderer->imageIndex = imageIndex;
 
   vkResetFences(device->device, 1, &renderer->inFlight[frame]);
 
@@ -192,17 +169,27 @@ int vs_renderer_draw(VsRenderer *renderer, VsDevice *device,
 
   vkCmdBeginRendering(cmd, &renderInfo);
 
-  if (renderer->pipeline) {
-    VkViewport vp = {
-        0, 0, (float)swapchain->extent.width, (float)swapchain->extent.height,
-        0, 1};
-    VkRect2D scissor = {{0, 0}, swapchain->extent};
-    vkCmdSetViewport(cmd, 0, 1, &vp);
-    vkCmdSetScissor(cmd, 0, 1, &scissor);
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      renderer->pipeline->handle);
-    vkCmdDraw(cmd, 3, 1, 0, 0);
-  }
+  return 0;
+}
+
+void vs_renderer_draw(VsRenderer *renderer, VsPipeline *pipeline,
+                       VkExtent2D extent) {
+  uint32_t frame = renderer->currentFrame;
+  VkCommandBuffer cmd = renderer->cmdBufs[frame];
+
+  VkViewport vp = {0, 0, (float)extent.width, (float)extent.height, 0, 1};
+  VkRect2D scissor = {{0, 0}, extent};
+  vkCmdSetViewport(cmd, 0, 1, &vp);
+  vkCmdSetScissor(cmd, 0, 1, &scissor);
+  vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->handle);
+  vkCmdDraw(cmd, 3, 1, 0, 0);
+}
+
+int vs_renderer_frame_end(VsRenderer *renderer, VsDevice *device,
+                  VsSwapchain *swapchain) {
+  uint32_t frame = renderer->currentFrame;
+  VkCommandBuffer cmd = renderer->cmdBufs[frame];
+  uint32_t imageIndex = renderer->imageIndex;
 
   vkCmdEndRendering(cmd);
 
@@ -238,7 +225,7 @@ int vs_renderer_draw(VsRenderer *renderer, VsDevice *device,
       .pSwapchains = &swapchain->handle,
       .pImageIndices = &imageIndex,
   };
-  result = vkQueuePresentKHR(device->pQueue, &presentInfo);
+  VkResult result = vkQueuePresentKHR(device->pQueue, &presentInfo);
 
   renderer->currentFrame = (frame + 1) % VS_MAX_FRAMES_IN_FLIGHT;
 

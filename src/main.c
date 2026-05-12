@@ -34,17 +34,51 @@ int main(void) {
 
   vs_log_info("using GPU: %s", vs_app_gpu_name(app));
 
-  if (!vs_renderer_create_pipeline(
-          app->renderer, app->device, app->swapchain->format,
-          SHADER_DIR "/triangle.vert.spv", SHADER_DIR "/triangle.frag.spv"))
-    VS_FAIL(app, window, "failed to create pipeline");
+  int triIdx = vs_add_pipeline(app, SHADER_DIR "/triangle.vert.spv",
+                               SHADER_DIR "/triangle.frag.spv");
+  vs_log_info("triangle pipeline index: %d", triIdx);
+  if (triIdx < 0)
+    VS_FAIL(app, window, "failed to create triangle pipeline");
+
+  int backgroundIdx = vs_add_pipeline(app, SHADER_DIR "/background.vert.spv",
+                                      SHADER_DIR "/background.frag.spv");
+  vs_log_info("background pipeline index: %d", backgroundIdx);
+  if (backgroundIdx < 0)
+    VS_FAIL(app, window, "failed to create cool pipeline");
 
   vs_log_info("entering main loop");
 
   while (!vs_window_should_close(window)) {
     glfwPollEvents();
-    vs_app_set_clear_color(app, VS_COLOR_BLACK);
-    vs_app_draw(app, window);
+
+    if (window->resized) {
+      window->resized = 0;
+      vs_app_resize(app, window);
+    }
+
+    int result = vs_frame_begin(app);
+    if (result == 1) {
+      vs_app_resize(app, window);
+      continue;
+    }
+    if (result < 0) {
+      vs_log_error("frame begin failed");
+      break;
+    }
+
+    vs_clear(app, VS_COLOR_BLACK);
+    vs_draw(app, backgroundIdx);
+    vs_draw(app, triIdx);
+
+    result = vs_frame_end(app);
+    if (result == 1) {
+      vs_app_resize(app, window);
+      continue;
+    }
+    if (result < 0) {
+      vs_log_error("frame end failed");
+      break;
+    }
   }
 
   vs_log_info("shutting down");

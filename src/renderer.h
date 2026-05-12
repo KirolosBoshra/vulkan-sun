@@ -16,18 +16,19 @@ typedef struct {
   VkFence inFlight[VS_MAX_FRAMES_IN_FLIGHT];
   VkClearValue clearColor;
   uint32_t currentFrame;
-  VsPipeline *pipeline;
+  uint32_t imageIndex;
 } VsRenderer;
 
 VsRenderer *vs_renderer_create(VsDevice *device);
-
 void vs_renderer_destroy(VsRenderer *renderer, VsDevice *device);
 
 void vs_renderer_set_clear_color(VsRenderer *renderer, VsColor color);
-int vs_renderer_create_pipeline(VsRenderer *renderer, VsDevice *device,
-                                VkFormat colorFormat,
-                                const char *vertPath, const char *fragPath);
-int vs_renderer_draw(VsRenderer *renderer, VsDevice *device,
-                     VsSwapchain *swapchain);
 
-#endif // RENDERER_H
+int vs_renderer_frame_begin(VsRenderer *renderer, VsDevice *device,
+                            VsSwapchain *swapchain);
+void vs_renderer_draw(VsRenderer *renderer, VsPipeline *pipeline,
+                      VkExtent2D extent);
+int vs_renderer_frame_end(VsRenderer *renderer, VsDevice *device,
+                          VsSwapchain *swapchain);
+
+#endif
