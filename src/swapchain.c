@@ -1,5 +1,5 @@
 #include "swapchain.h"
-#include <stdio.h>
+#include "logger.h"
 #include <stdlib.h>
 
 static VkSurfaceFormatKHR pick_format(VkSurfaceFormatKHR *formats,
@@ -34,8 +34,6 @@ static VkExtent2D pick_extent(const VkSurfaceCapabilitiesKHR *caps,
 #undef CLAMP
 }
 
-// create image views for all swapchain images;
-// if any fail, clean up and return -1
 static int create_views(VsSwapchain *sc) {
   for (uint32_t i = 0; i < sc->count; i++) {
     VkImageViewCreateInfo vi = {
@@ -53,7 +51,7 @@ static int create_views(VsSwapchain *sc) {
             },
     };
     if (vkCreateImageView(sc->device, &vi, NULL, &sc->views[i]) != VK_SUCCESS) {
-      fprintf(stderr, "failed to create image view %u\n", i);
+      vs_log_error("failed to create image view %u", i);
       for (uint32_t j = 0; j < i; j++)
         vkDestroyImageView(sc->device, sc->views[j], NULL);
       return -1;
@@ -62,9 +60,6 @@ static int create_views(VsSwapchain *sc) {
   return 0;
 }
 
-// Build a swapchain with the given parameters,
-// optionally reusing resources from an old swapchain.
-// Returns 0 on success, -1 on failure.
 static int swapchain_build(VsSwapchain *sc, VsDevice *device, uint32_t width,
                            uint32_t height, VkSwapchainKHR old) {
   VkSurfaceCapabilitiesKHR caps;
@@ -115,10 +110,6 @@ static int swapchain_build(VsSwapchain *sc, VsDevice *device, uint32_t width,
       .oldSwapchain = old,
   };
 
-  // if two images are used across multiple queue families, we either have to
-  // explicitly transfer ownership between the queues or we can create the
-  // swapchain with concurrent sharing mode. We choose the latter in this
-  // example for simplicity.
   if (device->graphicsFamily != device->presentFamily) {
     ci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
     ci.queueFamilyIndexCount = 2;
@@ -129,7 +120,7 @@ static int swapchain_build(VsSwapchain *sc, VsDevice *device, uint32_t width,
 
   if (vkCreateSwapchainKHR(device->device, &ci, NULL, &sc->handle) !=
       VK_SUCCESS) {
-    fprintf(stderr, "failed to create swapchain\n");
+    vs_log_error("failed to create swapchain");
     return -1;
   }
 
@@ -156,9 +147,11 @@ static int swapchain_build(VsSwapchain *sc, VsDevice *device, uint32_t width,
 
 VsSwapchain *vs_swapchain_create(VsDevice *device, VkSurfaceKHR surface,
                                  uint32_t width, uint32_t height) {
+  vs_log_trace("creating swapchain: %ux%u", width, height);
+
   VsSwapchain *sc = malloc(sizeof *sc);
   if (!sc) {
-    fprintf(stderr, "failed to allocate swapchain\n");
+    vs_log_error("failed to allocate swapchain");
     return NULL;
   }
 
@@ -171,15 +164,19 @@ VsSwapchain *vs_swapchain_create(VsDevice *device, VkSurfaceKHR surface,
     free(sc);
     return NULL;
   }
+
+  vs_log_trace("swapchain created: %ux%u, %u images", sc->extent.width,
+               sc->extent.height, sc->count);
   return sc;
 }
 
 void vs_swapchain_recreate(VsSwapchain *sc, VsDevice *device, uint32_t width,
                            uint32_t height) {
+  vs_log_trace("recreating swapchain: %ux%u", width, height);
+
   if (!sc)
     return;
 
-  // destroy old image views
   for (uint32_t i = 0; i < sc->count; i++)
     vkDestroyImageView(sc->device, sc->views[i], NULL);
   free(sc->images);
@@ -196,6 +193,7 @@ void vs_swapchain_recreate(VsSwapchain *sc, VsDevice *device, uint32_t width,
 }
 
 void vs_swapchain_destroy(VsSwapchain *sc) {
+  vs_log_trace("destroying swapchain");
   if (!sc)
     return;
   for (uint32_t i = 0; i < sc->count; i++)

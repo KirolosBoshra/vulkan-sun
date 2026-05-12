@@ -1,8 +1,8 @@
 #include "renderer.h"
-#include <stdio.h>
+#include "logger.h"
 #include <stdlib.h>
 
-// Transition a swapchain image between layouts using the Vulkan 1.3
+// Helper function to transition image layouts
 static void image_barrier(VkCommandBuffer cmd, VkImage image,
                           VkImageLayout from, VkImageLayout to) {
   VkImageMemoryBarrier2 b = {
@@ -31,9 +31,11 @@ static void image_barrier(VkCommandBuffer cmd, VkImage image,
 }
 
 VsRenderer *vs_renderer_create(VsDevice *device) {
+  vs_log_trace("creating renderer");
+
   VsRenderer *r = malloc(sizeof *r);
   if (!r) {
-    fprintf(stderr, "failed to allocate renderer\n");
+    vs_log_error("failed to allocate renderer");
     return NULL;
   }
 
@@ -47,12 +49,11 @@ VsRenderer *vs_renderer_create(VsDevice *device) {
   };
   if (vkCreateCommandPool(device->device, &poolInfo, NULL, &r->cmdPool) !=
       VK_SUCCESS) {
-    fprintf(stderr, "failed to create command pool\n");
+    vs_log_error("failed to create command pool");
     free(r);
     return NULL;
   }
 
-  // One command buffer per frame-in-flight
   VkCommandBufferAllocateInfo allocInfo = {
       .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
       .commandPool = r->cmdPool,
@@ -61,7 +62,7 @@ VsRenderer *vs_renderer_create(VsDevice *device) {
   };
   if (vkAllocateCommandBuffers(device->device, &allocInfo, r->cmdBufs) !=
       VK_SUCCESS) {
-    fprintf(stderr, "failed to allocate command buffers\n");
+    vs_log_error("failed to allocate command buffers");
     vkDestroyCommandPool(device->device, r->cmdPool, NULL);
     free(r);
     return NULL;
@@ -81,7 +82,7 @@ VsRenderer *vs_renderer_create(VsDevice *device) {
                           &r->renderFinished[i]) != VK_SUCCESS ||
         vkCreateFence(device->device, &fenceInfo, NULL, &r->inFlight[i]) !=
             VK_SUCCESS) {
-      fprintf(stderr, "failed to create sync objects for frame %d\n", i);
+      vs_log_error("failed to create sync objects for frame %d", i);
       for (int j = 0; j < i; j++) {
         vkDestroyFence(device->device, r->inFlight[j], NULL);
         vkDestroySemaphore(device->device, r->renderFinished[j], NULL);
@@ -93,10 +94,12 @@ VsRenderer *vs_renderer_create(VsDevice *device) {
     }
   }
 
+  vs_log_trace("renderer created");
   return r;
 }
 
 void vs_renderer_destroy(VsRenderer *renderer, VsDevice *device) {
+  vs_log_trace("destroying renderer");
   if (!renderer)
     return;
   if (renderer->pipeline)
@@ -111,24 +114,25 @@ void vs_renderer_destroy(VsRenderer *renderer, VsDevice *device) {
 }
 
 int vs_renderer_create_pipeline(VsRenderer *renderer, VsDevice *device,
-                                VkFormat colorFormat,
-                                const char *vertPath, const char *fragPath)
-{
-    if (!renderer)
-        return 0;
+                                VkFormat colorFormat, const char *vertPath,
+                                const char *fragPath) {
+  vs_log_trace("loading shaders and creating pipeline");
 
-    VsShader vert = vs_shader_create(device->device,
-                                     VK_SHADER_STAGE_VERTEX_BIT, vertPath);
-    VsShader frag = vs_shader_create(device->device,
-                                     VK_SHADER_STAGE_FRAGMENT_BIT, fragPath);
+  if (!renderer)
+    return 0;
 
-    renderer->pipeline = vs_pipeline_create(device->device, colorFormat,
-                                            vert, frag);
+  VsShader vert =
+      vs_shader_create(device->device, VK_SHADER_STAGE_VERTEX_BIT, vertPath);
+  VsShader frag =
+      vs_shader_create(device->device, VK_SHADER_STAGE_FRAGMENT_BIT, fragPath);
 
-    vs_shader_destroy(device->device, &vert);
-    vs_shader_destroy(device->device, &frag);
+  renderer->pipeline =
+      vs_pipeline_create(device->device, colorFormat, vert, frag);
 
-    return renderer->pipeline ? 1 : 0;
+  vs_shader_destroy(device->device, &vert);
+  vs_shader_destroy(device->device, &frag);
+
+  return renderer->pipeline ? 1 : 0;
 }
 
 void vs_renderer_set_clear_color(VsRenderer *renderer, VsColor color) {
@@ -152,7 +156,7 @@ int vs_renderer_draw(VsRenderer *renderer, VsDevice *device,
   if (result == VK_ERROR_OUT_OF_DATE_KHR)
     return 1;
   if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-    fprintf(stderr, "vkAcquireNextImageKHR failed\n");
+    vs_log_error("vkAcquireNextImageKHR failed");
     return -1;
   }
 
@@ -170,7 +174,6 @@ int vs_renderer_draw(VsRenderer *renderer, VsDevice *device,
   image_barrier(cmd, swapchain->images[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED,
                 VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-  // Begin dynamic rendering
   VkRenderingAttachmentInfo colorAtt = {
       .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
       .imageView = swapchain->views[imageIndex],
@@ -190,15 +193,14 @@ int vs_renderer_draw(VsRenderer *renderer, VsDevice *device,
   vkCmdBeginRendering(cmd, &renderInfo);
 
   if (renderer->pipeline) {
-    VkViewport vp = {0, 0,
-                     (float)swapchain->extent.width,
-                     (float)swapchain->extent.height,
-                     0, 1};
+    VkViewport vp = {
+        0, 0, (float)swapchain->extent.width, (float)swapchain->extent.height,
+        0, 1};
     VkRect2D scissor = {{0, 0}, swapchain->extent};
     vkCmdSetViewport(cmd, 0, 1, &vp);
     vkCmdSetScissor(cmd, 0, 1, &scissor);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                       renderer->pipeline->handle);
+                      renderer->pipeline->handle);
     vkCmdDraw(cmd, 3, 1, 0, 0);
   }
 
@@ -224,7 +226,7 @@ int vs_renderer_draw(VsRenderer *renderer, VsDevice *device,
   };
   if (vkQueueSubmit(device->qQueue, 1, &submitInfo,
                     renderer->inFlight[frame]) != VK_SUCCESS) {
-    fprintf(stderr, "vkQueueSubmit failed\n");
+    vs_log_error("vkQueueSubmit failed");
     return -1;
   }
 
@@ -243,7 +245,7 @@ int vs_renderer_draw(VsRenderer *renderer, VsDevice *device,
   if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
     return 1;
   if (result != VK_SUCCESS) {
-    fprintf(stderr, "vkQueuePresentKHR failed\n");
+    vs_log_error("vkQueuePresentKHR failed");
     return -1;
   }
   return 0;

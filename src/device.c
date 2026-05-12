@@ -1,4 +1,5 @@
 #include "device.h"
+#include "logger.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -33,16 +34,18 @@ int find_queue_family(VkPhysicalDevice physical, VkSurfaceKHR surface,
 }
 
 VsDevice *vs_device_create(VkInstance instance, VkSurfaceKHR surface) {
+  vs_log_trace("enumerating and selecting physical device");
+
   VsDevice *device = malloc(sizeof *device);
   if (!device) {
-    fprintf(stderr, "failed to allocate device\n");
+    vs_log_error("failed to allocate device");
     return NULL;
   }
 
   uint32_t deviceCount = 0;
   vkEnumeratePhysicalDevices(instance, &deviceCount, NULL);
   if (!deviceCount) {
-    fprintf(stderr, "no Vulkan-capable GPUs found\n");
+    vs_log_error("no Vulkan-capable GPUs found");
     free(device);
     return NULL;
   }
@@ -65,7 +68,7 @@ VsDevice *vs_device_create(VkInstance instance, VkSurfaceKHR surface) {
   free(devs);
 
   if (device->physical == VK_NULL_HANDLE) {
-    fprintf(stderr, "no suitable GPU found\n");
+    vs_log_error("no suitable GPU found");
     free(device);
     return NULL;
   }
@@ -84,22 +87,22 @@ VsDevice *vs_device_create(VkInstance instance, VkSurfaceKHR surface) {
   vkGetPhysicalDeviceFeatures2(device->physical, &check);
 
   if (!check13.dynamicRendering) {
-    fprintf(stderr, "GPU does not support dynamicRendering (Vulkan 1.3)\n");
+    vs_log_error("GPU does not support dynamicRendering (Vulkan 1.3)");
     free(device);
     return NULL;
   }
   if (!check13.synchronization2) {
-    fprintf(stderr, "GPU does not support synchronization2 (Vulkan 1.3)\n");
+    vs_log_error("GPU does not support synchronization2 (Vulkan 1.3)");
     free(device);
     return NULL;
   }
   if (!check12.bufferDeviceAddress) {
-    fprintf(stderr, "GPU does not support bufferDeviceAddress (Vulkan 1.2)\n");
+    vs_log_error("GPU does not support bufferDeviceAddress (Vulkan 1.2)");
     free(device);
     return NULL;
   }
   if (!check12.descriptorIndexing) {
-    fprintf(stderr, "GPU does not support descriptorIndexing (Vulkan 1.2)\n");
+    vs_log_error("GPU does not support descriptorIndexing (Vulkan 1.2)");
     free(device);
     return NULL;
   }
@@ -141,7 +144,7 @@ VsDevice *vs_device_create(VkInstance instance, VkSurfaceKHR surface) {
 
   if (vkCreateDevice(device->physical, &ci, NULL, &device->device) !=
       VK_SUCCESS) {
-    fprintf(stderr, "failed to create logical device\n");
+    vs_log_error("failed to create logical device");
     free(device);
     return NULL;
   }
@@ -152,10 +155,15 @@ VsDevice *vs_device_create(VkInstance instance, VkSurfaceKHR surface) {
   vkGetDeviceQueue(device->device, device->graphicsFamily, 0, &device->qQueue);
   vkGetDeviceQueue(device->device, device->presentFamily, 0, &device->pQueue);
 
+  VkPhysicalDeviceProperties props;
+  vkGetPhysicalDeviceProperties(device->physical, &props);
+  vs_log_info("selected GPU: %s", props.deviceName);
+
   return device;
 }
 
 void vs_device_destroy(VsDevice *device) {
+  vs_log_trace("destroying device");
   if (!device)
     return;
   vkDestroyDevice(device->device, NULL);

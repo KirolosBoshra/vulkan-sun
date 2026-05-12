@@ -1,5 +1,5 @@
 #include "window.h"
-#include <stdio.h>
+#include "logger.h"
 #include <stdlib.h>
 
 static void framebuffer_resize_callback(GLFWwindow *handle, int w, int h) {
@@ -19,9 +19,11 @@ void vs_glfw_terminate(void) { glfwTerminate(); }
 
 VsWindow *vs_window_create(VkInstance instance, uint32_t width, uint32_t height,
                            const char *title) {
+  vs_log_trace("creating window: %ux%u", width, height);
+
   VsWindow *window = malloc(sizeof(VsWindow));
   if (!window) {
-    fprintf(stderr, "failed to allocate window\n");
+    vs_log_error("failed to allocate window");
     return NULL;
   }
 
@@ -29,35 +31,28 @@ VsWindow *vs_window_create(VkInstance instance, uint32_t width, uint32_t height,
 
   window->handle = glfwCreateWindow(width, height, title, NULL, NULL);
   if (!window->handle) {
-    fprintf(stderr, "failed to create glfw window\n");
+    vs_log_error("failed to create glfw window");
     free(window);
     return NULL;
   }
 
-  if (glfwCreateWindowSurface(instance, window->handle, NULL,
-                              &window->surface) != VK_SUCCESS) {
-    fprintf(stderr, "failed to create window surface\n");
-    glfwDestroyWindow(window->handle);
-    free(window);
-    return NULL;
-  }
-
-  // set user pointer and framebuffer resize callback
   glfwSetWindowUserPointer(window->handle, window);
   glfwSetFramebufferSizeCallback(window->handle, framebuffer_resize_callback);
 
   if (glfwCreateWindowSurface(instance, window->handle, NULL,
                               &window->surface) != VK_SUCCESS) {
-    fprintf(stderr, "failed to create window surface\n");
+    vs_log_error("failed to create window surface");
     glfwDestroyWindow(window->handle);
     free(window);
     return NULL;
   }
 
+  vs_log_trace("window created: %ux%u", width, height);
   return window;
 }
 
 void vs_window_destroy(VsWindow *window) {
+  vs_log_trace("destroying window");
   if (!window)
     return;
   vkDestroySurfaceKHR(window->instance, window->surface, NULL);

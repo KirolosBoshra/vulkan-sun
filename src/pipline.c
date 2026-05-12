@@ -1,17 +1,19 @@
 #include "pipline.h"
-#include <stdio.h>
+#include "logger.h"
 #include <stdlib.h>
 
 VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
                                VsShader vert, VsShader frag) {
+  vs_log_trace("creating graphics pipeline");
+
   VsPipeline *pipeline = malloc(sizeof(VsPipeline));
   if (!pipeline) {
-    fprintf(stderr, "failed to allocate pipeline\n");
+    vs_log_error("failed to allocate pipeline");
     return NULL;
   }
 
   if (!vert.module || !frag.module) {
-    fprintf(stderr, "invalid shader modules\n");
+    vs_log_error("invalid shader modules");
     free(pipeline);
     return NULL;
   }
@@ -89,7 +91,7 @@ VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
 
   if (vkCreatePipelineLayout(device, &layoutInfo, NULL, &pipeline->layout) !=
       VK_SUCCESS) {
-    fprintf(stderr, "failed to create pipeline layout\n");
+    vs_log_error("failed to create pipeline layout");
     free(pipeline);
     return NULL;
   }
@@ -118,16 +120,18 @@ VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
 
   if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &info, NULL,
                                 &pipeline->handle) != VK_SUCCESS) {
-    fprintf(stderr, "failed to create graphics pipeline\n");
+    vs_log_error("failed to create graphics pipeline");
     vkDestroyPipelineLayout(device, pipeline->layout, NULL);
     free(pipeline);
     return NULL;
   }
 
+  vs_log_trace("pipeline created");
   return pipeline;
 }
 
 void vs_pipeline_destroy(VsPipeline *pipeline, VkDevice device) {
+  vs_log_trace("destroying pipeline");
   if (!pipeline)
     return;
   vkDestroyPipeline(device, pipeline->handle, NULL);

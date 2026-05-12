@@ -1,12 +1,14 @@
 #include "app.h"
-#include <stdio.h>
+#include "logger.h"
 #include <stdlib.h>
 #include <string.h>
 
 VsApp *vs_app_create(const char *name, uint32_t version) {
+  vs_log_trace("creating Vulkan instance");
+
   VsApp *app = malloc(sizeof(VsApp));
   if (!app) {
-    fprintf(stderr, "failed to allocate app\n");
+    vs_log_error("failed to allocate app");
     return NULL;
   }
 
@@ -34,7 +36,7 @@ VsApp *vs_app_create(const char *name, uint32_t version) {
   };
 
   if (vkCreateInstance(&createInfo, NULL, &app->instance) != VK_SUCCESS) {
-    fprintf(stderr, "failed to create vulkan instance\n");
+    vs_log_error("failed to create vulkan instance");
     free(app);
     return NULL;
   }
@@ -44,6 +46,8 @@ VsApp *vs_app_create(const char *name, uint32_t version) {
 
 void vs_app_setup(VsApp *app, VkSurfaceKHR surface, uint32_t width,
                   uint32_t height) {
+  vs_log_trace("setting up device, swapchain, renderer");
+
   if (!app)
     return;
 
@@ -68,6 +72,8 @@ void vs_app_setup(VsApp *app, VkSurfaceKHR surface, uint32_t width,
 }
 
 void vs_app_destroy(VsApp *app) {
+  vs_log_trace("destroying app");
+
   if (!app)
     return;
 

@@ -41,6 +41,7 @@ add_executable(vulkan_sun ${SOURCES} ${HEADERS})
 target_include_directories(vulkan_sun PRIVATE src ${GLFW_INCLUDE_DIR})
 target_link_libraries(vulkan_sun PRIVATE Vulkan::Vulkan ${GLFW_LIBRARY} gdi32)
 target_compile_definitions(vulkan_sun PRIVATE
+    $<$<CONFIG:Debug>:VS_LOGGING>
     SHADER_DIR="${CMAKE_CURRENT_BINARY_DIR}")
 
 file(GLOB SHADER_SOURCES CONFIGURE_DEPENDS

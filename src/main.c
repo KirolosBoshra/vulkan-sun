@@ -1,11 +1,11 @@
 #include "app.h"
 #include "core.h"
+#include "logger.h"
 #include "window.h"
-#include <stdio.h>
 
 #define VS_FAIL(app, window, msg)                                              \
   do {                                                                         \
-    fprintf(stderr, "%s\n", msg);                                              \
+    vs_log_error("%s", msg);                                                   \
     vs_window_destroy(window);                                                 \
     vs_app_destroy(app);                                                       \
     vs_terminate();                                                            \
@@ -13,6 +13,7 @@
   } while (0)
 
 int main(void) {
+  vs_log_info("starting vulkan_sun");
   vs_init();
 
   VsApp *app = NULL;
@@ -31,12 +32,14 @@ int main(void) {
   if (!app->device || !app->swapchain || !app->renderer)
     VS_FAIL(app, window, "failed to setup app");
 
-  printf("Using GPU: %s\n", vs_app_gpu_name(app));
+  vs_log_info("using GPU: %s", vs_app_gpu_name(app));
 
   if (!vs_renderer_create_pipeline(
           app->renderer, app->device, app->swapchain->format,
           SHADER_DIR "/triangle.vert.spv", SHADER_DIR "/triangle.frag.spv"))
     VS_FAIL(app, window, "failed to create pipeline");
+
+  vs_log_info("entering main loop");
 
   while (!vs_window_should_close(window)) {
     glfwPollEvents();
@@ -44,6 +47,7 @@ int main(void) {
     vs_app_draw(app, window);
   }
 
+  vs_log_info("shutting down");
   vs_window_destroy(window);
   vs_app_destroy(app);
   vs_terminate();
