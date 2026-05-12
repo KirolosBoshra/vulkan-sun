@@ -1,10 +1,9 @@
 #include "pipline.h"
 #include "logger.h"
-#include "utils/globals.h"
 #include <stdlib.h>
 
 VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
-                               VsShader vert, VsShader frag) {
+                               VsShader vert, VsShader frag, u32 pushSize) {
   vs_log_trace("creating graphics pipeline");
 
   VsPipeline *pipeline = malloc(sizeof(VsPipeline));
@@ -18,6 +17,8 @@ VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
     free(pipeline);
     return NULL;
   }
+
+  pipeline->pushSize = pushSize;
 
   VkPipelineShaderStageCreateInfo stages[2] = {
       {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -86,8 +87,16 @@ VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
       .pDynamicStates = dynamics,
   };
 
+  VkPushConstantRange pushRange = {
+      .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+      .offset = 0,
+      .size = pushSize,
+  };
+
   VkPipelineLayoutCreateInfo layoutInfo = {
       .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+      .pushConstantRangeCount = pushSize > 0 ? 1 : 0,
+      .pPushConstantRanges = pushSize > 0 ? &pushRange : NULL,
   };
 
   if (vkCreatePipelineLayout(device, &layoutInfo, NULL, &pipeline->layout) !=

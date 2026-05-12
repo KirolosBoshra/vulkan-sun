@@ -106,7 +106,8 @@ const char *vs_app_gpu_name(VsApp *app) {
   return name;
 }
 
-i32 vs_add_pipeline(VsApp *app, const char *vertPath, const char *fragPath) {
+i32 vs_add_pipeline(VsApp *app, const char *vertPath, const char *fragPath,
+                    u32 pushSize) {
   if (!app || app->pipelineCount >= VS_MAX_PIPELINES)
     return -1;
 
@@ -115,8 +116,8 @@ i32 vs_add_pipeline(VsApp *app, const char *vertPath, const char *fragPath) {
   VsShader frag = vs_shader_create(app->device->device,
                                    VK_SHADER_STAGE_FRAGMENT_BIT, fragPath);
 
-  VsPipeline *p = vs_pipeline_create(app->device->device,
-                                     app->swapchain->format, vert, frag);
+  VsPipeline *p = vs_pipeline_create(
+      app->device->device, app->swapchain->format, vert, frag, pushSize);
 
   vs_shader_destroy(app->device->device, &vert);
   vs_shader_destroy(app->device->device, &frag);
@@ -165,4 +166,10 @@ void vs_app_resize(VsApp *app, VsWindow *window) {
     vkDeviceWaitIdle(app->device->device);
     vs_swapchain_recreate(app->swapchain, app->device, w, h);
   }
+}
+
+void vs_push_constants(VsApp *app, void *ptr, u32 size) {
+  if (!app || !app->renderer || size > sizeof(app->renderer->pushData))
+    return;
+  memcpy(app->renderer->pushData, ptr, size);
 }

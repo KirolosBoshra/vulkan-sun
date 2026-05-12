@@ -2,6 +2,7 @@
 #include "logger.h"
 #include "utils/globals.h"
 #include <stdlib.h>
+#include <string.h>
 
 static void image_barrier(VkCommandBuffer cmd, VkImage image,
                           VkImageLayout from, VkImageLayout to) {
@@ -41,6 +42,7 @@ VsRenderer *vs_renderer_create(VsDevice *device) {
 
   r->clearColor = vs_color_clear_value(VS_COLOR_SKYBLUE);
   r->currentFrame = 0;
+  memset(r->pushData, 0, sizeof(r->pushData));
 
   VkCommandPoolCreateInfo poolInfo = {
       .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -183,6 +185,9 @@ void vs_renderer_draw(VsRenderer *renderer, VsPipeline *pipeline,
   vkCmdSetViewport(cmd, 0, 1, &vp);
   vkCmdSetScissor(cmd, 0, 1, &scissor);
   vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->handle);
+  vkCmdPushConstants(cmd, pipeline->layout,
+                     VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                     0, pipeline->pushSize, renderer->pushData);
   vkCmdDraw(cmd, 3, 1, 0, 0);
 }
 

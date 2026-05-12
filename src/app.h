@@ -25,11 +25,13 @@ void vs_app_setup(VsApp *app, VkSurfaceKHR surface, u32 width, u32 height);
 void vs_app_destroy(VsApp *app);
 const char *vs_app_gpu_name(VsApp *app);
 
-i32 vs_add_pipeline(VsApp *app, const char *vertPath, const char *fragPath);
+i32 vs_add_pipeline(VsApp *app, const char *vertPath, const char *fragPath,
+                    u32 pushSize);
 void vs_clear(VsApp *app, VsColor color);
 i32 vs_frame_begin(VsApp *app);
 void vs_draw(VsApp *app, i32 pipelineIndex);
 i32 vs_frame_end(VsApp *app);
 void vs_app_resize(VsApp *app, VsWindow *window);
+void vs_push_constants(VsApp *app, void *ptr, u32 size);
 
 #endif

@@ -18,6 +18,7 @@ typedef struct {
   VkClearValue clearColor;
   u32 currentFrame;
   u32 imageIndex;
+  u8 pushData[128];
 } VsRenderer;
 
 VsRenderer *vs_renderer_create(VsDevice *device);

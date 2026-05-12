@@ -13,6 +13,10 @@
     return 1;                                                                  \
   } while (0)
 
+typedef struct {
+  f32 time;
+} BackgroundPush;
+
 i32 main(void) {
   vs_log_info("starting vulkan_sun");
   vs_init();
@@ -36,16 +40,17 @@ i32 main(void) {
   vs_log_info("using GPU: %s", vs_app_gpu_name(app));
 
   i32 triIdx = vs_add_pipeline(app, SHADER_DIR "/triangle.vert.spv",
-                               SHADER_DIR "/triangle.frag.spv");
+                               SHADER_DIR "/triangle.frag.spv", 0);
   vs_log_info("triangle pipeline index: %d", triIdx);
   if (triIdx < 0)
     VS_FAIL(app, window, "failed to create triangle pipeline");
 
   i32 backgroundIdx = vs_add_pipeline(app, SHADER_DIR "/background.vert.spv",
-                                      SHADER_DIR "/background.frag.spv");
+                                      SHADER_DIR "/background.frag.spv",
+                                      sizeof(BackgroundPush));
   vs_log_info("background pipeline index: %d", backgroundIdx);
   if (backgroundIdx < 0)
-    VS_FAIL(app, window, "failed to create cool pipeline");
+    VS_FAIL(app, window, "failed to create background pipeline");
 
   vs_log_info("entering main loop");
 
@@ -68,6 +73,9 @@ i32 main(void) {
     }
 
     vs_clear(app, VS_COLOR_BLACK);
+
+    BackgroundPush t = {.time = glfwGetTime()};
+    vs_push_constants(app, &t, sizeof(t));
     vs_draw(app, backgroundIdx);
     vs_draw(app, triIdx);
 
