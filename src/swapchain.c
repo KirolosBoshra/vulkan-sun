@@ -34,8 +34,8 @@ static VkExtent2D pick_extent(const VkSurfaceCapabilitiesKHR *caps,
 #undef CLAMP
 }
 
-// create image views for all swapchain images; if any fail, clean up and return
-// -1
+// create image views for all swapchain images;
+// if any fail, clean up and return -1
 static int create_views(VsSwapchain *sc) {
   for (uint32_t i = 0; i < sc->count; i++) {
     VkImageViewCreateInfo vi = {
@@ -63,8 +63,8 @@ static int create_views(VsSwapchain *sc) {
 }
 
 // Build a swapchain with the given parameters,
-// optionally reusing resources from an old swapchain. Returns 0 on success, -1
-// on failure.
+// optionally reusing resources from an old swapchain.
+// Returns 0 on success, -1 on failure.
 static int swapchain_build(VsSwapchain *sc, VsDevice *device, uint32_t width,
                            uint32_t height, VkSwapchainKHR old) {
   VkSurfaceCapabilitiesKHR caps;

@@ -15,7 +15,7 @@ int find_queue_family(VkPhysicalDevice physical, VkSurfaceKHR surface,
   VkQueueFamilyProperties *props = malloc(count * sizeof *props);
   vkGetPhysicalDeviceQueueFamilyProperties(physical, &count, props);
 
-  for (uint32_t i = 0; i < count; i++) {
+  for (size_t i = 0; i < count; i++) {
     if ((props[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) && *graphicsFamily < 0)
       *graphicsFamily = (int)i;
 

@@ -99,6 +99,8 @@ VsRenderer *vs_renderer_create(VsDevice *device) {
 void vs_renderer_destroy(VsRenderer *renderer, VsDevice *device) {
   if (!renderer)
     return;
+  if (renderer->pipeline)
+    vs_pipeline_destroy(renderer->pipeline, device->device);
   for (int i = 0; i < VS_MAX_FRAMES_IN_FLIGHT; i++) {
     vkDestroyFence(device->device, renderer->inFlight[i], NULL);
     vkDestroySemaphore(device->device, renderer->renderFinished[i], NULL);
@@ -106,6 +108,27 @@ void vs_renderer_destroy(VsRenderer *renderer, VsDevice *device) {
   }
   vkDestroyCommandPool(device->device, renderer->cmdPool, NULL);
   free(renderer);
+}
+
+int vs_renderer_create_pipeline(VsRenderer *renderer, VsDevice *device,
+                                VkFormat colorFormat,
+                                const char *vertPath, const char *fragPath)
+{
+    if (!renderer)
+        return 0;
+
+    VsShader vert = vs_shader_create(device->device,
+                                     VK_SHADER_STAGE_VERTEX_BIT, vertPath);
+    VsShader frag = vs_shader_create(device->device,
+                                     VK_SHADER_STAGE_FRAGMENT_BIT, fragPath);
+
+    renderer->pipeline = vs_pipeline_create(device->device, colorFormat,
+                                            vert, frag);
+
+    vs_shader_destroy(device->device, &vert);
+    vs_shader_destroy(device->device, &frag);
+
+    return renderer->pipeline ? 1 : 0;
 }
 
 void vs_renderer_set_clear_color(VsRenderer *renderer, VsColor color) {
@@ -165,6 +188,20 @@ int vs_renderer_draw(VsRenderer *renderer, VsDevice *device,
   };
 
   vkCmdBeginRendering(cmd, &renderInfo);
+
+  if (renderer->pipeline) {
+    VkViewport vp = {0, 0,
+                     (float)swapchain->extent.width,
+                     (float)swapchain->extent.height,
+                     0, 1};
+    VkRect2D scissor = {{0, 0}, swapchain->extent};
+    vkCmdSetViewport(cmd, 0, 1, &vp);
+    vkCmdSetScissor(cmd, 0, 1, &scissor);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                       renderer->pipeline->handle);
+    vkCmdDraw(cmd, 3, 1, 0, 0);
+  }
+
   vkCmdEndRendering(cmd);
 
   image_barrier(cmd, swapchain->images[imageIndex],

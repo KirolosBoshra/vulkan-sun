@@ -40,6 +40,28 @@ add_executable(vulkan_sun ${SOURCES} ${HEADERS})
 
 target_include_directories(vulkan_sun PRIVATE src ${GLFW_INCLUDE_DIR})
 target_link_libraries(vulkan_sun PRIVATE Vulkan::Vulkan ${GLFW_LIBRARY} gdi32)
+target_compile_definitions(vulkan_sun PRIVATE
+    SHADER_DIR="${CMAKE_CURRENT_BINARY_DIR}")
+
+file(GLOB SHADER_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_SOURCE_DIR}/shaders/*.vert"
+    "${CMAKE_SOURCE_DIR}/shaders/*.frag")
+
+set(SHADER_BINARIES)
+foreach(SHADER ${SHADER_SOURCES})
+    get_filename_component(NAME ${SHADER} NAME)
+    set(SPV "${CMAKE_CURRENT_BINARY_DIR}/${NAME}.spv")
+    list(APPEND SHADER_BINARIES ${SPV})
+
+    add_custom_command(
+        OUTPUT ${SPV}
+        COMMAND Vulkan::glslc -o "${SPV}" "${SHADER}"
+        DEPENDS ${SHADER}
+        COMMENT "Compiling ${NAME}")
+endforeach()
+
+add_custom_target(shaders DEPENDS ${SHADER_BINARIES})
+add_dependencies(vulkan_sun shaders)
 
 if(GLFW_DLL)
     add_custom_command(TARGET vulkan_sun POST_BUILD
