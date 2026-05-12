@@ -1,5 +1,6 @@
 #ifndef APP_H
 #define APP_H
+#include "utils/globals.h"
 
 #include "device.h"
 #include "pipline.h"
@@ -16,20 +17,19 @@ typedef struct {
   VsSwapchain *swapchain;
   VsRenderer *renderer;
   VsPipeline *pipelines[VS_MAX_PIPELINES];
-  uint32_t pipelineCount;
+  u32 pipelineCount;
 } VsApp;
 
-VsApp *vs_app_create(const char *name, uint32_t version);
-void vs_app_setup(VsApp *app, VkSurfaceKHR surface, uint32_t width,
-                  uint32_t height);
+VsApp *vs_app_create(const char *name, u32 version);
+void vs_app_setup(VsApp *app, VkSurfaceKHR surface, u32 width, u32 height);
 void vs_app_destroy(VsApp *app);
 const char *vs_app_gpu_name(VsApp *app);
 
-int vs_add_pipeline(VsApp *app, const char *vertPath, const char *fragPath);
+i32 vs_add_pipeline(VsApp *app, const char *vertPath, const char *fragPath);
 void vs_clear(VsApp *app, VsColor color);
-int vs_frame_begin(VsApp *app);
-void vs_draw(VsApp *app, int pipelineIndex);
-int vs_frame_end(VsApp *app);
+i32 vs_frame_begin(VsApp *app);
+void vs_draw(VsApp *app, i32 pipelineIndex);
+i32 vs_frame_end(VsApp *app);
 void vs_app_resize(VsApp *app, VsWindow *window);
 
 #endif

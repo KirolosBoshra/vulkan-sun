@@ -1,10 +1,11 @@
-#include "logger.h"
 #include "shader.h"
+#include "logger.h"
+#include "utils/globals.h"
 #include <stdio.h>
 #include <stdlib.h>
 
 VsShader vs_shader_create(VkDevice device, VkShaderStageFlagBits stage,
-                           const char *spvPath) {
+                          const char *spvPath) {
   vs_log_trace("loading shader: %s", spvPath);
 
   VsShader shader = {VK_NULL_HANDLE, stage};
@@ -17,16 +18,16 @@ VsShader vs_shader_create(VkDevice device, VkShaderStageFlagBits stage,
   }
 
   fseek(fp, 0, SEEK_END);
-  long size = ftell(fp);
+  i64 size = ftell(fp);
   rewind(fp);
 
-  uint32_t *code = malloc((size_t)size);
-  fread(code, 1, (size_t)size, fp);
+  u32 *code = malloc((usize)size);
+  fread(code, 1, (usize)size, fp);
   fclose(fp);
 
   VkShaderModuleCreateInfo info = {
       .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-      .codeSize = (size_t)size,
+      .codeSize = (usize)size,
       .pCode = code,
   };
 

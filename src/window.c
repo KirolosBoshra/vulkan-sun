@@ -1,8 +1,9 @@
 #include "window.h"
 #include "logger.h"
+#include "utils/globals.h"
 #include <stdlib.h>
 
-static void framebuffer_resize_callback(GLFWwindow *handle, int w, int h) {
+static void framebuffer_resize_callback(GLFWwindow *handle, i32 w, i32 h) {
   (void)w;
   (void)h;
   VsWindow *window = glfwGetWindowUserPointer(handle);
@@ -17,7 +18,7 @@ void vs_glfw_init(void) {
 
 void vs_glfw_terminate(void) { glfwTerminate(); }
 
-VsWindow *vs_window_create(VkInstance instance, uint32_t width, uint32_t height,
+VsWindow *vs_window_create(VkInstance instance, u32 width, u32 height,
                            const char *title) {
   vs_log_trace("creating window: %ux%u", width, height);
 
@@ -60,14 +61,14 @@ void vs_window_destroy(VsWindow *window) {
   free(window);
 }
 
-void vs_window_get_size(VsWindow *window, uint32_t *width, uint32_t *height) {
-  int w = 0, h = 0;
+void vs_window_get_size(VsWindow *window, u32 *width, u32 *height) {
+  i32 w = 0, h = 0;
   if (window)
     glfwGetFramebufferSize(window->handle, &w, &h);
   if (width)
-    *width = (uint32_t)w;
+    *width = (u32)w;
   if (height)
-    *height = (uint32_t)h;
+    *height = (u32)h;
 }
 
 bool vs_window_should_close(VsWindow *window) {

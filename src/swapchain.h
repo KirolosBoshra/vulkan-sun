@@ -2,6 +2,7 @@
 #define SWAPCHAIN_H
 
 #include "device.h"
+#include "utils/globals.h"
 #include <vulkan/vulkan.h>
 
 typedef struct {
@@ -10,16 +11,15 @@ typedef struct {
   VkImageView *views;
   VkFormat format;
   VkExtent2D extent;
-  uint32_t count;
+  u32 count;
   VkDevice device;
   VkSurfaceKHR surface;
 } VsSwapchain;
 
 VsSwapchain *vs_swapchain_create(VsDevice *device, VkSurfaceKHR surface,
-                                 uint32_t width, uint32_t height);
-void vs_swapchain_recreate(VsSwapchain *swapchain, VsDevice *device,
-                           uint32_t width, uint32_t height);
+                                 u32 width, u32 height);
+void vs_swapchain_recreate(VsSwapchain *swapchain, VsDevice *device, u32 width,
+                           u32 height);
 void vs_swapchain_destroy(VsSwapchain *swapchain);
 
-#endif // SWAPCHAIN_H
-#define SWAPCHAIN_H
+#endif

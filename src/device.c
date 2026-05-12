@@ -1,14 +1,14 @@
 #include "device.h"
 #include "logger.h"
-#include <stdio.h>
+#include "utils/globals.h"
 #include <stdlib.h>
 
-int find_queue_family(VkPhysicalDevice physical, VkSurfaceKHR surface,
-                      int *graphicsFamily, int *presentFamily) {
+i32 find_queue_family(VkPhysicalDevice physical, VkSurfaceKHR surface,
+                      i32 *graphicsFamily, i32 *presentFamily) {
   *graphicsFamily = -1;
   *presentFamily = -1;
 
-  uint32_t count = 0;
+  u32 count = 0;
   vkGetPhysicalDeviceQueueFamilyProperties(physical, &count, NULL);
   if (!count)
     return -1;
@@ -16,14 +16,14 @@ int find_queue_family(VkPhysicalDevice physical, VkSurfaceKHR surface,
   VkQueueFamilyProperties *props = malloc(count * sizeof *props);
   vkGetPhysicalDeviceQueueFamilyProperties(physical, &count, props);
 
-  for (size_t i = 0; i < count; i++) {
+  for (usize i = 0; i < count; i++) {
     if ((props[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) && *graphicsFamily < 0)
-      *graphicsFamily = (int)i;
+      *graphicsFamily = (i32)i;
 
     VkBool32 supported = VK_FALSE;
     vkGetPhysicalDeviceSurfaceSupportKHR(physical, i, surface, &supported);
     if (supported && *presentFamily < 0)
-      *presentFamily = (int)i;
+      *presentFamily = (i32)i;
 
     if (*graphicsFamily >= 0 && *presentFamily >= 0)
       break;
@@ -42,7 +42,7 @@ VsDevice *vs_device_create(VkInstance instance, VkSurfaceKHR surface) {
     return NULL;
   }
 
-  uint32_t deviceCount = 0;
+  u32 deviceCount = 0;
   vkEnumeratePhysicalDevices(instance, &deviceCount, NULL);
   if (!deviceCount) {
     vs_log_error("no Vulkan-capable GPUs found");
@@ -53,11 +53,11 @@ VsDevice *vs_device_create(VkInstance instance, VkSurfaceKHR surface) {
   VkPhysicalDevice *devs = malloc(deviceCount * sizeof *devs);
   vkEnumeratePhysicalDevices(instance, &deviceCount, devs);
 
-  int graphicsFamily = -1, presentFamily = -1;
+  i32 graphicsFamily = -1, presentFamily = -1;
   device->physical = VK_NULL_HANDLE;
 
-  for (uint32_t i = 0; i < deviceCount; i++) {
-    int g, p;
+  for (u32 i = 0; i < deviceCount; i++) {
+    i32 g, p;
     if (find_queue_family(devs[i], surface, &g, &p) == 0) {
       device->physical = devs[i];
       graphicsFamily = g;
@@ -119,12 +119,12 @@ VsDevice *vs_device_create(VkInstance instance, VkSurfaceKHR surface) {
       .pNext = &enable13,
   };
 
-  float priority = 1.0f;
-  uint32_t indices[] = {(uint32_t)graphicsFamily, (uint32_t)presentFamily};
-  uint32_t familyCount = (graphicsFamily == presentFamily) ? 1 : 2;
+  f32 priority = 1.0f;
+  u32 indices[] = {(u32)graphicsFamily, (u32)presentFamily};
+  u32 familyCount = (graphicsFamily == presentFamily) ? 1 : 2;
 
   VkDeviceQueueCreateInfo queueInfos[2] = {0};
-  for (uint32_t i = 0; i < familyCount; i++) {
+  for (u32 i = 0; i < familyCount; i++) {
     queueInfos[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     queueInfos[i].queueFamilyIndex = indices[i];
     queueInfos[i].queueCount = 1;
@@ -149,8 +149,8 @@ VsDevice *vs_device_create(VkInstance instance, VkSurfaceKHR surface) {
     return NULL;
   }
 
-  device->graphicsFamily = (uint32_t)graphicsFamily;
-  device->presentFamily = (uint32_t)presentFamily;
+  device->graphicsFamily = (u32)graphicsFamily;
+  device->presentFamily = (u32)presentFamily;
 
   vkGetDeviceQueue(device->device, device->graphicsFamily, 0, &device->qQueue);
   vkGetDeviceQueue(device->device, device->presentFamily, 0, &device->pQueue);

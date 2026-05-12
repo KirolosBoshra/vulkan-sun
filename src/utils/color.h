@@ -1,10 +1,11 @@
 #ifndef COLOR_H
 #define COLOR_H
+#include "utils/globals.h"
 
 #include <vulkan/vulkan.h>
 
 typedef struct {
-  float r, g, b, a;
+  f32 r, g, b, a;
 } VsColor;
 
 static inline VkClearValue vs_color_clear_value(VsColor c) {

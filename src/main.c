@@ -1,6 +1,7 @@
 #include "app.h"
 #include "core.h"
 #include "logger.h"
+#include "utils/globals.h"
 #include "window.h"
 
 #define VS_FAIL(app, window, msg)                                              \
@@ -12,7 +13,7 @@
     return 1;                                                                  \
   } while (0)
 
-int main(void) {
+i32 main(void) {
   vs_log_info("starting vulkan_sun");
   vs_init();
 
@@ -34,13 +35,13 @@ int main(void) {
 
   vs_log_info("using GPU: %s", vs_app_gpu_name(app));
 
-  int triIdx = vs_add_pipeline(app, SHADER_DIR "/triangle.vert.spv",
+  i32 triIdx = vs_add_pipeline(app, SHADER_DIR "/triangle.vert.spv",
                                SHADER_DIR "/triangle.frag.spv");
   vs_log_info("triangle pipeline index: %d", triIdx);
   if (triIdx < 0)
     VS_FAIL(app, window, "failed to create triangle pipeline");
 
-  int backgroundIdx = vs_add_pipeline(app, SHADER_DIR "/background.vert.spv",
+  i32 backgroundIdx = vs_add_pipeline(app, SHADER_DIR "/background.vert.spv",
                                       SHADER_DIR "/background.frag.spv");
   vs_log_info("background pipeline index: %d", backgroundIdx);
   if (backgroundIdx < 0)
@@ -56,7 +57,7 @@ int main(void) {
       vs_app_resize(app, window);
     }
 
-    int result = vs_frame_begin(app);
+    i32 result = vs_frame_begin(app);
     if (result == 1) {
       vs_app_resize(app, window);
       continue;

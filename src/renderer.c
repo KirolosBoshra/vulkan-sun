@@ -1,9 +1,10 @@
 #include "renderer.h"
 #include "logger.h"
+#include "utils/globals.h"
 #include <stdlib.h>
 
 static void image_barrier(VkCommandBuffer cmd, VkImage image,
-                           VkImageLayout from, VkImageLayout to) {
+                          VkImageLayout from, VkImageLayout to) {
   VkImageMemoryBarrier2 b = {
       .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
       .srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
@@ -74,15 +75,15 @@ VsRenderer *vs_renderer_create(VsDevice *device) {
       .flags = VK_FENCE_CREATE_SIGNALED_BIT,
   };
 
-  for (int i = 0; i < VS_MAX_FRAMES_IN_FLIGHT; i++) {
+  for (i32 i = 0; i < VS_MAX_FRAMES_IN_FLIGHT; i++) {
     if (vkCreateSemaphore(device->device, &semInfo, NULL,
-                           &r->imageAvailable[i]) != VK_SUCCESS ||
+                          &r->imageAvailable[i]) != VK_SUCCESS ||
         vkCreateSemaphore(device->device, &semInfo, NULL,
-                           &r->renderFinished[i]) != VK_SUCCESS ||
+                          &r->renderFinished[i]) != VK_SUCCESS ||
         vkCreateFence(device->device, &fenceInfo, NULL, &r->inFlight[i]) !=
             VK_SUCCESS) {
       vs_log_error("failed to create sync objects for frame %d", i);
-      for (int j = 0; j < i; j++) {
+      for (i32 j = 0; j < i; j++) {
         vkDestroyFence(device->device, r->inFlight[j], NULL);
         vkDestroySemaphore(device->device, r->renderFinished[j], NULL);
         vkDestroySemaphore(device->device, r->imageAvailable[j], NULL);
@@ -101,7 +102,7 @@ void vs_renderer_destroy(VsRenderer *renderer, VsDevice *device) {
   vs_log_trace("destroying renderer");
   if (!renderer)
     return;
-  for (int i = 0; i < VS_MAX_FRAMES_IN_FLIGHT; i++) {
+  for (usize i = 0; i < VS_MAX_FRAMES_IN_FLIGHT; i++) {
     vkDestroyFence(device->device, renderer->inFlight[i], NULL);
     vkDestroySemaphore(device->device, renderer->renderFinished[i], NULL);
     vkDestroySemaphore(device->device, renderer->imageAvailable[i], NULL);
@@ -116,14 +117,14 @@ void vs_renderer_set_clear_color(VsRenderer *renderer, VsColor color) {
   renderer->clearColor = vs_color_clear_value(color);
 }
 
-int vs_renderer_frame_begin(VsRenderer *renderer, VsDevice *device,
-                    VsSwapchain *swapchain) {
-  uint32_t frame = renderer->currentFrame;
+i32 vs_renderer_frame_begin(VsRenderer *renderer, VsDevice *device,
+                            VsSwapchain *swapchain) {
+  u32 frame = renderer->currentFrame;
 
   vkWaitForFences(device->device, 1, &renderer->inFlight[frame], VK_TRUE,
                   UINT64_MAX);
 
-  uint32_t imageIndex;
+  u32 imageIndex;
   VkResult result = vkAcquireNextImageKHR(
       device->device, swapchain->handle, UINT64_MAX,
       renderer->imageAvailable[frame], VK_NULL_HANDLE, &imageIndex);
@@ -173,11 +174,11 @@ int vs_renderer_frame_begin(VsRenderer *renderer, VsDevice *device,
 }
 
 void vs_renderer_draw(VsRenderer *renderer, VsPipeline *pipeline,
-                       VkExtent2D extent) {
-  uint32_t frame = renderer->currentFrame;
+                      VkExtent2D extent) {
+  u32 frame = renderer->currentFrame;
   VkCommandBuffer cmd = renderer->cmdBufs[frame];
 
-  VkViewport vp = {0, 0, (float)extent.width, (float)extent.height, 0, 1};
+  VkViewport vp = {0, 0, (f32)extent.width, (f32)extent.height, 0, 1};
   VkRect2D scissor = {{0, 0}, extent};
   vkCmdSetViewport(cmd, 0, 1, &vp);
   vkCmdSetScissor(cmd, 0, 1, &scissor);
@@ -185,11 +186,11 @@ void vs_renderer_draw(VsRenderer *renderer, VsPipeline *pipeline,
   vkCmdDraw(cmd, 3, 1, 0, 0);
 }
 
-int vs_renderer_frame_end(VsRenderer *renderer, VsDevice *device,
-                  VsSwapchain *swapchain) {
-  uint32_t frame = renderer->currentFrame;
+i32 vs_renderer_frame_end(VsRenderer *renderer, VsDevice *device,
+                          VsSwapchain *swapchain) {
+  u32 frame = renderer->currentFrame;
   VkCommandBuffer cmd = renderer->cmdBufs[frame];
-  uint32_t imageIndex = renderer->imageIndex;
+  u32 imageIndex = renderer->imageIndex;
 
   vkCmdEndRendering(cmd);
 

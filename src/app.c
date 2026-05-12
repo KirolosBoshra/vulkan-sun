@@ -1,9 +1,10 @@
 #include "app.h"
 #include "logger.h"
+#include "utils/globals.h"
 #include <stdlib.h>
 #include <string.h>
 
-VsApp *vs_app_create(const char *name, uint32_t version) {
+VsApp *vs_app_create(const char *name, u32 version) {
   vs_log_trace("creating Vulkan instance");
 
   VsApp *app = malloc(sizeof(VsApp));
@@ -17,7 +18,7 @@ VsApp *vs_app_create(const char *name, uint32_t version) {
   app->renderer = NULL;
   app->pipelineCount = 0;
 
-  uint32_t extCount = 0;
+  u32 extCount = 0;
   const char **extensions = glfwGetRequiredInstanceExtensions(&extCount);
 
   VkApplicationInfo appInfo = {
@@ -45,8 +46,7 @@ VsApp *vs_app_create(const char *name, uint32_t version) {
   return app;
 }
 
-void vs_app_setup(VsApp *app, VkSurfaceKHR surface, uint32_t width,
-                  uint32_t height) {
+void vs_app_setup(VsApp *app, VkSurfaceKHR surface, u32 width, u32 height) {
   vs_log_trace("setting up device, swapchain, renderer");
 
   if (!app)
@@ -81,7 +81,7 @@ void vs_app_destroy(VsApp *app) {
   if (app->device)
     vkDeviceWaitIdle(app->device->device);
 
-  for (uint32_t i = 0; i < app->pipelineCount; i++)
+  for (u32 i = 0; i < app->pipelineCount; i++)
     vs_pipeline_destroy(app->pipelines[i], app->device->device);
 
   if (app->renderer)
@@ -106,17 +106,17 @@ const char *vs_app_gpu_name(VsApp *app) {
   return name;
 }
 
-int vs_add_pipeline(VsApp *app, const char *vertPath, const char *fragPath) {
+i32 vs_add_pipeline(VsApp *app, const char *vertPath, const char *fragPath) {
   if (!app || app->pipelineCount >= VS_MAX_PIPELINES)
     return -1;
 
   VsShader vert = vs_shader_create(app->device->device,
-                                    VK_SHADER_STAGE_VERTEX_BIT, vertPath);
+                                   VK_SHADER_STAGE_VERTEX_BIT, vertPath);
   VsShader frag = vs_shader_create(app->device->device,
-                                    VK_SHADER_STAGE_FRAGMENT_BIT, fragPath);
+                                   VK_SHADER_STAGE_FRAGMENT_BIT, fragPath);
 
   VsPipeline *p = vs_pipeline_create(app->device->device,
-                                      app->swapchain->format, vert, frag);
+                                     app->swapchain->format, vert, frag);
 
   vs_shader_destroy(app->device->device, &vert);
   vs_shader_destroy(app->device->device, &frag);
@@ -124,7 +124,7 @@ int vs_add_pipeline(VsApp *app, const char *vertPath, const char *fragPath) {
   if (!p)
     return -1;
 
-  int idx = (int)app->pipelineCount;
+  i32 idx = (i32)app->pipelineCount;
   app->pipelines[idx] = p;
   app->pipelineCount++;
   return idx;
@@ -136,21 +136,21 @@ void vs_clear(VsApp *app, VsColor color) {
   vs_renderer_set_clear_color(app->renderer, color);
 }
 
-int vs_frame_begin(VsApp *app) {
+i32 vs_frame_begin(VsApp *app) {
   if (!app || !app->renderer || !app->device || !app->swapchain)
     return -1;
   return vs_renderer_frame_begin(app->renderer, app->device, app->swapchain);
 }
 
-void vs_draw(VsApp *app, int pipelineIndex) {
+void vs_draw(VsApp *app, i32 pipelineIndex) {
   if (!app || !app->renderer || pipelineIndex < 0 ||
-      pipelineIndex >= (int)app->pipelineCount)
+      pipelineIndex >= (i32)app->pipelineCount)
     return;
   vs_renderer_draw(app->renderer, app->pipelines[pipelineIndex],
                    app->swapchain->extent);
 }
 
-int vs_frame_end(VsApp *app) {
+i32 vs_frame_end(VsApp *app) {
   if (!app || !app->renderer || !app->device || !app->swapchain)
     return -1;
   return vs_renderer_frame_end(app->renderer, app->device, app->swapchain);
@@ -159,7 +159,7 @@ int vs_frame_end(VsApp *app) {
 void vs_app_resize(VsApp *app, VsWindow *window) {
   if (!app || !window)
     return;
-  uint32_t w = 0, h = 0;
+  u32 w = 0, h = 0;
   vs_window_get_size(window, &w, &h);
   if (w && h) {
     vkDeviceWaitIdle(app->device->device);

@@ -1,5 +1,6 @@
 #ifndef RENDERER_H
 #define RENDERER_H
+#include "utils/globals.h"
 
 #include "device.h"
 #include "pipline.h"
@@ -15,8 +16,8 @@ typedef struct {
   VkSemaphore renderFinished[VS_MAX_FRAMES_IN_FLIGHT];
   VkFence inFlight[VS_MAX_FRAMES_IN_FLIGHT];
   VkClearValue clearColor;
-  uint32_t currentFrame;
-  uint32_t imageIndex;
+  u32 currentFrame;
+  u32 imageIndex;
 } VsRenderer;
 
 VsRenderer *vs_renderer_create(VsDevice *device);
@@ -24,11 +25,11 @@ void vs_renderer_destroy(VsRenderer *renderer, VsDevice *device);
 
 void vs_renderer_set_clear_color(VsRenderer *renderer, VsColor color);
 
-int vs_renderer_frame_begin(VsRenderer *renderer, VsDevice *device,
+i32 vs_renderer_frame_begin(VsRenderer *renderer, VsDevice *device,
                             VsSwapchain *swapchain);
 void vs_renderer_draw(VsRenderer *renderer, VsPipeline *pipeline,
                       VkExtent2D extent);
-int vs_renderer_frame_end(VsRenderer *renderer, VsDevice *device,
+i32 vs_renderer_frame_end(VsRenderer *renderer, VsDevice *device,
                           VsSwapchain *swapchain);
 
 #endif

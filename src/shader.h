@@ -4,8 +4,8 @@
 #include <vulkan/vulkan.h>
 
 typedef struct {
-    VkShaderModule module;
-    VkShaderStageFlagBits stage;
+  VkShaderModule module;
+  VkShaderStageFlagBits stage;
 } VsShader;
 
 VsShader vs_shader_create(VkDevice device, VkShaderStageFlagBits stage,

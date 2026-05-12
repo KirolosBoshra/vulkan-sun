@@ -1,5 +1,6 @@
 #include "pipline.h"
 #include "logger.h"
+#include "utils/globals.h"
 #include <stdlib.h>
 
 VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,

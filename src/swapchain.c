@@ -1,26 +1,25 @@
 #include "swapchain.h"
 #include "logger.h"
+#include "utils/globals.h"
 #include <stdlib.h>
 
-static VkSurfaceFormatKHR pick_format(VkSurfaceFormatKHR *formats,
-                                      uint32_t count) {
-  for (uint32_t i = 0; i < count; i++)
+static VkSurfaceFormatKHR pick_format(VkSurfaceFormatKHR *formats, u32 count) {
+  for (u32 i = 0; i < count; i++)
     if (formats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
         formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
       return formats[i];
   return formats[0];
 }
 
-static VkPresentModeKHR pick_present_mode(VkPresentModeKHR *modes,
-                                          uint32_t count) {
-  for (uint32_t i = 0; i < count; i++)
+static VkPresentModeKHR pick_present_mode(VkPresentModeKHR *modes, u32 count) {
+  for (u32 i = 0; i < count; i++)
     if (modes[i] == VK_PRESENT_MODE_MAILBOX_KHR)
       return modes[i];
   return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-static VkExtent2D pick_extent(const VkSurfaceCapabilitiesKHR *caps,
-                              uint32_t width, uint32_t height) {
+static VkExtent2D pick_extent(const VkSurfaceCapabilitiesKHR *caps, u32 width,
+                              u32 height) {
   if (caps->currentExtent.width != UINT32_MAX)
     return caps->currentExtent;
 
@@ -34,8 +33,8 @@ static VkExtent2D pick_extent(const VkSurfaceCapabilitiesKHR *caps,
 #undef CLAMP
 }
 
-static int create_views(VsSwapchain *sc) {
-  for (uint32_t i = 0; i < sc->count; i++) {
+static i32 create_views(VsSwapchain *sc) {
+  for (u32 i = 0; i < sc->count; i++) {
     VkImageViewCreateInfo vi = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image = sc->images[i],
@@ -52,7 +51,7 @@ static int create_views(VsSwapchain *sc) {
     };
     if (vkCreateImageView(sc->device, &vi, NULL, &sc->views[i]) != VK_SUCCESS) {
       vs_log_error("failed to create image view %u", i);
-      for (uint32_t j = 0; j < i; j++)
+      for (u32 j = 0; j < i; j++)
         vkDestroyImageView(sc->device, sc->views[j], NULL);
       return -1;
     }
@@ -60,13 +59,13 @@ static int create_views(VsSwapchain *sc) {
   return 0;
 }
 
-static int swapchain_build(VsSwapchain *sc, VsDevice *device, uint32_t width,
-                           uint32_t height, VkSwapchainKHR old) {
+static i32 swapchain_build(VsSwapchain *sc, VsDevice *device, u32 width,
+                           u32 height, VkSwapchainKHR old) {
   VkSurfaceCapabilitiesKHR caps;
   vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device->physical, sc->surface,
                                             &caps);
 
-  uint32_t fmtCount = 0;
+  u32 fmtCount = 0;
   VkSurfaceFormatKHR *fmts = NULL;
   vkGetPhysicalDeviceSurfaceFormatsKHR(device->physical, sc->surface, &fmtCount,
                                        NULL);
@@ -74,7 +73,7 @@ static int swapchain_build(VsSwapchain *sc, VsDevice *device, uint32_t width,
   vkGetPhysicalDeviceSurfaceFormatsKHR(device->physical, sc->surface, &fmtCount,
                                        fmts);
 
-  uint32_t modeCount = 0;
+  u32 modeCount = 0;
   VkPresentModeKHR *modes = NULL;
   vkGetPhysicalDeviceSurfacePresentModesKHR(device->physical, sc->surface,
                                             &modeCount, NULL);
@@ -88,11 +87,11 @@ static int swapchain_build(VsSwapchain *sc, VsDevice *device, uint32_t width,
   free(fmts);
   free(modes);
 
-  uint32_t imageCount = caps.minImageCount + 1;
+  u32 imageCount = caps.minImageCount + 1;
   if (caps.maxImageCount > 0 && imageCount > caps.maxImageCount)
     imageCount = caps.maxImageCount;
 
-  uint32_t queueIndices[] = {device->graphicsFamily, device->presentFamily};
+  u32 queueIndices[] = {device->graphicsFamily, device->presentFamily};
 
   VkSwapchainCreateInfoKHR ci = {
       .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -146,7 +145,7 @@ static int swapchain_build(VsSwapchain *sc, VsDevice *device, uint32_t width,
 }
 
 VsSwapchain *vs_swapchain_create(VsDevice *device, VkSurfaceKHR surface,
-                                 uint32_t width, uint32_t height) {
+                                 u32 width, u32 height) {
   vs_log_trace("creating swapchain: %ux%u", width, height);
 
   VsSwapchain *sc = malloc(sizeof *sc);
@@ -170,14 +169,14 @@ VsSwapchain *vs_swapchain_create(VsDevice *device, VkSurfaceKHR surface,
   return sc;
 }
 
-void vs_swapchain_recreate(VsSwapchain *sc, VsDevice *device, uint32_t width,
-                           uint32_t height) {
+void vs_swapchain_recreate(VsSwapchain *sc, VsDevice *device, u32 width,
+                           u32 height) {
   vs_log_trace("recreating swapchain: %ux%u", width, height);
 
   if (!sc)
     return;
 
-  for (uint32_t i = 0; i < sc->count; i++)
+  for (u32 i = 0; i < sc->count; i++)
     vkDestroyImageView(sc->device, sc->views[i], NULL);
   free(sc->images);
   free(sc->views);
@@ -196,7 +195,7 @@ void vs_swapchain_destroy(VsSwapchain *sc) {
   vs_log_trace("destroying swapchain");
   if (!sc)
     return;
-  for (uint32_t i = 0; i < sc->count; i++)
+  for (u32 i = 0; i < sc->count; i++)
     vkDestroyImageView(sc->device, sc->views[i], NULL);
   vkDestroySwapchainKHR(sc->device, sc->handle, NULL);
   free(sc->images);

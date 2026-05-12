@@ -1,4 +1,5 @@
 #include "logger.h"
+#include "utils/globals.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <time.h>
@@ -35,7 +36,7 @@ static const char *levelColor(VsLogLevel level) {
 
 void vs_log_set_level(VsLogLevel level) { minLevel = level; }
 
-void vs_log_write(VsLogLevel level, const char *file, int line, const char *fmt,
+void vs_log_write(VsLogLevel level, const char *file, i32 line, const char *fmt,
                   ...) {
   if (level < minLevel)
     return;
