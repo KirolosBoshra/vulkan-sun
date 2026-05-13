@@ -3,6 +3,7 @@
 #include "utils/globals.h"
 
 #include "device.h"
+#include "mesh.h"
 #include "pipline.h"
 #include "renderer.h"
 #include "swapchain.h"
@@ -30,6 +31,7 @@ i32 vs_add_pipeline(VsApp *app, const char *vertPath, const char *fragPath,
 void vs_clear(VsApp *app, VsColor color);
 i32 vs_frame_begin(VsApp *app);
 void vs_draw(VsApp *app, i32 pipelineIndex);
+void vs_draw_mesh(VsApp *app, i32 pipelineIndex, Mesh *mesh);
 i32 vs_frame_end(VsApp *app);
 void vs_app_resize(VsApp *app, VsWindow *window);
 void vs_push_constants(VsApp *app, void *ptr, u32 size);

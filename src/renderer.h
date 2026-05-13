@@ -3,6 +3,7 @@
 #include "utils/globals.h"
 
 #include "device.h"
+#include "mesh.h"
 #include "pipline.h"
 #include "swapchain.h"
 #include "utils/color.h"
@@ -30,6 +31,8 @@ i32 vs_renderer_frame_begin(VsRenderer *renderer, VsDevice *device,
                             VsSwapchain *swapchain);
 void vs_renderer_draw(VsRenderer *renderer, VsPipeline *pipeline,
                       VkExtent2D extent);
+void vs_renderer_draw_mesh(VsRenderer *renderer, VsPipeline *pipeline,
+                            Mesh *mesh, VkExtent2D extent);
 i32 vs_renderer_frame_end(VsRenderer *renderer, VsDevice *device,
                           VsSwapchain *swapchain);
 

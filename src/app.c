@@ -151,6 +151,14 @@ void vs_draw(VsApp *app, i32 pipelineIndex) {
                    app->swapchain->extent);
 }
 
+void vs_draw_mesh(VsApp *app, i32 pipelineIndex, Mesh *mesh) {
+  if (!app || !app->renderer || !mesh || pipelineIndex < 0 ||
+      pipelineIndex >= (i32)app->pipelineCount)
+    return;
+  vs_renderer_draw_mesh(app->renderer, app->pipelines[pipelineIndex],
+                         mesh, app->swapchain->extent);
+}
+
 i32 vs_frame_end(VsApp *app) {
   if (!app || !app->renderer || !app->device || !app->swapchain)
     return -1;

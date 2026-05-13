@@ -191,6 +191,25 @@ void vs_renderer_draw(VsRenderer *renderer, VsPipeline *pipeline,
   vkCmdDraw(cmd, 3, 1, 0, 0);
 }
 
+void vs_renderer_draw_mesh(VsRenderer *renderer, VsPipeline *pipeline,
+                            Mesh *mesh, VkExtent2D extent) {
+  u32 frame = renderer->currentFrame;
+  VkCommandBuffer cmd = renderer->cmdBufs[frame];
+  VkDeviceSize offset = 0;
+
+  VkViewport vp = {0, 0, (f32)extent.width, (f32)extent.height, 0, 1};
+  VkRect2D scissor = {{0, 0}, extent};
+  vkCmdSetViewport(cmd, 0, 1, &vp);
+  vkCmdSetScissor(cmd, 0, 1, &scissor);
+  vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->handle);
+  vkCmdPushConstants(cmd, pipeline->layout,
+                     VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                     0, pipeline->pushSize, renderer->pushData);
+  vkCmdBindVertexBuffers(cmd, 0, 1, &mesh->vertexBuffer.buffer, &offset);
+  vkCmdBindIndexBuffer(cmd, mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+  vkCmdDrawIndexed(cmd, mesh->indexCount, 1, 0, 0, 0);
+}
+
 i32 vs_renderer_frame_end(VsRenderer *renderer, VsDevice *device,
                           VsSwapchain *swapchain) {
   u32 frame = renderer->currentFrame;

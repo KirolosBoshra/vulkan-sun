@@ -1,5 +1,7 @@
 #include "pipline.h"
 #include "logger.h"
+#include "utils/types.h"
+#include <stddef.h>
 #include <stdlib.h>
 
 VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
@@ -31,10 +33,29 @@ VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
        .pName = "main"},
   };
 
+  VkVertexInputBindingDescription binding = {
+      .binding = 0,
+      .stride = sizeof(Vertex),
+      .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+  };
+
+  VkVertexInputAttributeDescription attrs[4] = {
+      {.location = 0, .binding = 0, .format = VK_FORMAT_R32G32B32_SFLOAT,
+       .offset = offsetof(Vertex, position)},
+      {.location = 1, .binding = 0, .format = VK_FORMAT_R32G32B32_SFLOAT,
+       .offset = offsetof(Vertex, normal)},
+      {.location = 2, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+       .offset = offsetof(Vertex, color)},
+      {.location = 3, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT,
+       .offset = offsetof(Vertex, u)},
+  };
+
   VkPipelineVertexInputStateCreateInfo vertexInput = {
       .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-      .vertexBindingDescriptionCount = 0,
-      .vertexAttributeDescriptionCount = 0,
+      .vertexBindingDescriptionCount = 1,
+      .pVertexBindingDescriptions = &binding,
+      .vertexAttributeDescriptionCount = 4,
+      .pVertexAttributeDescriptions = attrs,
   };
 
   VkPipelineInputAssemblyStateCreateInfo inputAssembly = {
