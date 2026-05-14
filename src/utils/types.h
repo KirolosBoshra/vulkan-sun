@@ -4,19 +4,8 @@
 #include "color.h"
 #include "device.h"
 #include "globals.h"
+#include "utils/math.h"
 #include <vulkan/vulkan.h>
-
-typedef struct {
-  f32 x, y;
-} Vec2;
-
-typedef struct {
-  f32 x, y, z;
-} Vec3;
-
-typedef struct {
-  f32 x, y, z, w;
-} Vec4;
 
 typedef struct {
   Vec3 position;

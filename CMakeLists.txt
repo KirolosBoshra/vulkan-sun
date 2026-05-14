@@ -83,3 +83,19 @@ if(NOT EXISTS "${CMAKE_SOURCE_DIR}/compile_commands.json")
             "${CMAKE_SOURCE_DIR}/compile_commands.json")
     endif()
 endif()
+
+option(VS_BUILD_TESTS "Build tests" ON)
+
+if(VS_BUILD_TESTS)
+    enable_testing()
+
+    add_executable(test_math tests/test_math.c)
+    target_include_directories(test_math PRIVATE src)
+    target_link_libraries(test_math PRIVATE m)
+    add_test(NAME math COMMAND test_math)
+
+    add_custom_target(check
+        COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIG> --output-on-failure
+        USES_TERMINAL)
+    add_dependencies(check test_math)
+endif()
