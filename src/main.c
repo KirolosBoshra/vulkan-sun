@@ -1,4 +1,5 @@
 #include "app.h"
+#include "camera.h"
 #include "core.h"
 #include "logger.h"
 #include "utils/globals.h"
@@ -18,6 +19,9 @@ typedef struct {
   f32 time;
 } BackgroundPush;
 
+const i32 WIDTH = 600;
+const i32 HEIGHT = 400;
+
 i32 main(void) {
   vs_log_info("starting vulkan_sun");
   vs_init();
@@ -29,20 +33,20 @@ i32 main(void) {
   if (!app)
     VS_FAIL(app, window, "failed to create app");
 
-  window = vs_window_create(app->instance, 600, 400, "Vulkan Sun");
+  window = vs_window_create(app->instance, WIDTH, HEIGHT, "Vulkan Sun");
   if (!window)
     VS_FAIL(app, window, "failed to create window");
 
-  vs_app_setup(app, window->surface, 600, 400);
+  vs_app_setup(app, window->surface, WIDTH, HEIGHT);
 
   if (!app->device || !app->swapchain || !app->renderer)
     VS_FAIL(app, window, "failed to setup app");
 
-  i32 triIdx = vs_add_pipeline(app, SHADER_DIR "/triangle.vert.spv",
-                               SHADER_DIR "/triangle.frag.spv", 0);
-  vs_log_info("triangle pipeline index: %d", triIdx);
-  if (triIdx < 0)
-    VS_FAIL(app, window, "failed to create triangle pipeline");
+  i32 cubeIdx = vs_add_pipeline(app, SHADER_DIR "/cube.vert.spv",
+                                SHADER_DIR "/cube.frag.spv", (u32)sizeof(Mat4));
+  vs_log_info("cube pipeline index: %d", cubeIdx);
+  if (cubeIdx < 0)
+    VS_FAIL(app, window, "failed to create cube pipeline");
 
   i32 backgroundIdx = vs_add_pipeline(app, SHADER_DIR "/background.vert.spv",
                                       SHADER_DIR "/background.frag.spv",
@@ -53,21 +57,45 @@ i32 main(void) {
 
   // tmp mesh, we should really have some kind of resource manager
   Vertex verts[] = {
-      {{-0.5, -0.5, 0}, {0, 0, 1}, VS_COLOR_RED, 0, 0},
-      {{0.5, -0.5, 0}, {0, 0, 1}, VS_COLOR_GREEN, 0, 0},
-      {{0.5, 0.5, 0}, {0, 0, 1}, VS_COLOR_BLUE, 0, 0},
-      {{-0.5, 0.5, 0}, {0, 0, 1}, VS_COLOR_SKYBLUE, 0, 0},
+      {{-1, -1, -1}, {0, 0, -1}, VS_COLOR_SKYBLUE, 0, 0},
+      {{1, -1, -1}, {0, 0, -1}, VS_COLOR_SKYBLUE, 0, 0},
+      {{1, 1, -1}, {0, 0, -1}, VS_COLOR_SKYBLUE, 0, 0},
+      {{-1, 1, -1}, {0, 0, -1}, VS_COLOR_SKYBLUE, 0, 0},
+      {{-1, -1, 1}, {0, 0, 1}, VS_COLOR_SKYBLUE, 0, 0},
+      {{1, -1, 1}, {0, 0, 1}, VS_COLOR_SKYBLUE, 0, 0},
+      {{1, 1, 1}, {0, 0, 1}, VS_COLOR_SKYBLUE, 0, 0},
+      {{-1, 1, 1}, {0, 0, 1}, VS_COLOR_SKYBLUE, 0, 0},
   };
-  u32 indices[] = {0, 1, 2, 0, 2, 3};
+  u32 indices[] = {
+      0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6, 0, 7, 4, 0, 3, 7,
+      1, 5, 6, 1, 6, 2, 0, 5, 1, 0, 4, 5, 3, 6, 7, 3, 2, 6,
+  };
 
-  Mesh quad = vs_mesh_create(app->device, verts, 4, indices, 6);
+  Mesh cube = vs_mesh_create(app->device, verts, 8, indices,
+                             sizeof(indices) / sizeof(*indices));
 
+  f32 s = 0.5f;
+  Vertex smallVerts[] = {
+      {{-s, -s, -s}, {0, 0, -1}, VS_COLOR_RED, 0, 0},
+      {{s, -s, -s}, {0, 0, -1}, VS_COLOR_RED, 0, 0},
+      {{s, s, -s}, {0, 0, -1}, VS_COLOR_RED, 0, 0},
+      {{-s, s, -s}, {0, 0, -1}, VS_COLOR_RED, 0, 0},
+      {{-s, -s, s}, {0, 0, 1}, VS_COLOR_RED, 0, 0},
+      {{s, -s, s}, {0, 0, 1}, VS_COLOR_RED, 0, 0},
+      {{s, s, s}, {0, 0, 1}, VS_COLOR_RED, 0, 0},
+      {{-s, s, s}, {0, 0, 1}, VS_COLOR_RED, 0, 0},
+  };
+  Mesh smallCube = vs_mesh_create(app->device, smallVerts, 8, indices,
+                                  sizeof(indices) / sizeof(*indices));
+
+  Camera cam = create_camera(WIDTH, HEIGHT);
+  cam.position = (Vec3){0, 5, 5};
   vs_log_info("entering main loop");
 
   while (!vs_window_should_close(window)) {
     glfwPollEvents();
 
-    i32 result = vs_frame_begin(app);
+    i32 result = vs_frame_begin(app, VS_COLOR_BLACK);
     if (result == 1) {
       vs_app_resize(app, window);
       continue;
@@ -77,12 +105,21 @@ i32 main(void) {
       break;
     }
 
-    vs_clear(app, VS_COLOR_BLACK);
-
-    BackgroundPush t = {.time = glfwGetTime()};
-    vs_push_constants(app, &t, sizeof(t));
+    f32 t = (f32)glfwGetTime();
+    BackgroundPush bgt = {.time = t};
+    vs_push_constants(app, &bgt, sizeof(bgt));
     vs_draw(app, backgroundIdx);
-    vs_draw_mesh(app, triIdx, &quad);
+
+    Mat4 vp = camera_vp(&cam);
+    vs_update_ubo(app, &vp, sizeof(vp));
+
+    Mat4 model = mat4_rotate_y(MAT4_IDENTITY, t * 0.5f);
+    vs_push_constants(app, &model, sizeof(model));
+    vs_draw_mesh(app, cubeIdx, &cube);
+
+    Mat4 model2 = mat4_translation((Vec3){0, 2, 0});
+    vs_push_constants(app, &model2, sizeof(model2));
+    vs_draw_mesh(app, cubeIdx, &smallCube);
 
     result = vs_frame_end(app);
     if (result == 1) {
@@ -96,7 +133,8 @@ i32 main(void) {
   }
 
   vs_log_info("shutting down");
-  vs_mesh_destroy(&quad, app->device->device);
+  vs_mesh_destroy(&cube, app->device->device);
+  vs_mesh_destroy(&smallCube, app->device->device);
   vs_window_destroy(window);
   vs_app_destroy(app);
   vs_terminate();

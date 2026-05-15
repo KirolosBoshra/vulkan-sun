@@ -27,7 +27,7 @@ Buffer vs_create_buffer(usize size, VsDevice *device, VkBufferUsageFlags usage,
   if (vkCreateBuffer(device->device, &bufferInfo, NULL, &buffer.buffer) !=
       VK_SUCCESS) {
     vs_log_error("Failed to create buffer!");
-    exit(EXIT_FAILURE);
+    return (Buffer){0};
   }
 
   // Get memory requirements
@@ -44,7 +44,8 @@ Buffer vs_create_buffer(usize size, VsDevice *device, VkBufferUsageFlags usage,
   if (vkAllocateMemory(device->device, &allocInfo, NULL, &buffer.memory) !=
       VK_SUCCESS) {
     vs_log_error("Failed to allocate buffer memory!");
-    exit(EXIT_FAILURE);
+    vkDestroyBuffer(device->device, buffer.buffer, NULL);
+    return (Buffer){0};
   }
 
   // Bind memory to the buffer

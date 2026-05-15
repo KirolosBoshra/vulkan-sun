@@ -4,7 +4,7 @@
 
 #include "device.h"
 #include "mesh.h"
-#include "pipline.h"
+#include "pipeline.h"
 #include "renderer.h"
 #include "swapchain.h"
 #include "window.h"
@@ -18,6 +18,7 @@ typedef struct {
   VsSwapchain *swapchain;
   VsRenderer *renderer;
   VsPipeline *pipelines[VS_MAX_PIPELINES];
+  VkDescriptorSetLayout sceneLayout;
   u32 pipelineCount;
 } VsApp;
 
@@ -28,12 +29,16 @@ const char *vs_app_gpu_name(VsApp *app);
 
 i32 vs_add_pipeline(VsApp *app, const char *vertPath, const char *fragPath,
                     u32 pushSize);
+i32 vs_add_pipeline_ex(VsApp *app, const char *vertPath, const char *fragPath,
+                       u32 pushSize, VkDescriptorSetLayout *setLayouts,
+                       u32 setLayoutCount);
 void vs_clear(VsApp *app, VsColor color);
-i32 vs_frame_begin(VsApp *app);
+i32 vs_frame_begin(VsApp *app, VsColor clearColor);
 void vs_draw(VsApp *app, i32 pipelineIndex);
 void vs_draw_mesh(VsApp *app, i32 pipelineIndex, Mesh *mesh);
 i32 vs_frame_end(VsApp *app);
 void vs_app_resize(VsApp *app, VsWindow *window);
 void vs_push_constants(VsApp *app, void *ptr, u32 size);
+void vs_update_ubo(VsApp *app, void *data, u32 size);
 
 #endif

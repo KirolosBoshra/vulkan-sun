@@ -69,7 +69,9 @@ void vs_app_setup(VsApp *app, VkSurfaceKHR surface, u32 width, u32 height) {
     app->swapchain = NULL;
     vs_device_destroy(app->device);
     app->device = NULL;
+    return;
   }
+  app->sceneLayout = app->renderer->sceneLayout;
 }
 
 void vs_app_destroy(VsApp *app) {
@@ -108,6 +110,12 @@ const char *vs_app_gpu_name(VsApp *app) {
 
 i32 vs_add_pipeline(VsApp *app, const char *vertPath, const char *fragPath,
                     u32 pushSize) {
+  return vs_add_pipeline_ex(app, vertPath, fragPath, pushSize, NULL, 0);
+}
+
+i32 vs_add_pipeline_ex(VsApp *app, const char *vertPath, const char *fragPath,
+                       u32 pushSize, VkDescriptorSetLayout *setLayouts,
+                       u32 setLayoutCount) {
   if (!app || app->pipelineCount >= VS_MAX_PIPELINES)
     return -1;
 
@@ -116,8 +124,14 @@ i32 vs_add_pipeline(VsApp *app, const char *vertPath, const char *fragPath,
   VsShader frag = vs_shader_create(app->device->device,
                                    VK_SHADER_STAGE_FRAGMENT_BIT, fragPath);
 
-  VsPipeline *p = vs_pipeline_create(
-      app->device->device, app->swapchain->format, vert, frag, pushSize);
+  VkDescriptorSetLayout layouts[VS_MAX_PIPELINES];
+  layouts[0] = app->sceneLayout;
+  for (u32 i = 0; i < setLayoutCount; i++)
+    layouts[1 + i] = setLayouts[i];
+
+  VsPipeline *p =
+      vs_pipeline_create(app->device->device, app->swapchain->format, vert,
+                         frag, pushSize, layouts, 1 + setLayoutCount);
 
   vs_shader_destroy(app->device->device, &vert);
   vs_shader_destroy(app->device->device, &frag);
@@ -137,10 +151,11 @@ void vs_clear(VsApp *app, VsColor color) {
   vs_renderer_set_clear_color(app->renderer, color);
 }
 
-i32 vs_frame_begin(VsApp *app) {
+i32 vs_frame_begin(VsApp *app, VsColor clearColor) {
   if (!app || !app->renderer || !app->device || !app->swapchain)
     return -1;
-  return vs_renderer_frame_begin(app->renderer, app->device, app->swapchain);
+  VkClearValue cv = vs_color_clear_value(clearColor);
+  return vs_renderer_frame_begin(app->renderer, app->device, app->swapchain, cv);
 }
 
 void vs_draw(VsApp *app, i32 pipelineIndex) {
@@ -155,8 +170,8 @@ void vs_draw_mesh(VsApp *app, i32 pipelineIndex, Mesh *mesh) {
   if (!app || !app->renderer || !mesh || pipelineIndex < 0 ||
       pipelineIndex >= (i32)app->pipelineCount)
     return;
-  vs_renderer_draw_mesh(app->renderer, app->pipelines[pipelineIndex],
-                         mesh, app->swapchain->extent);
+  vs_renderer_draw_mesh(app->renderer, app->pipelines[pipelineIndex], mesh,
+                        app->swapchain->extent);
 }
 
 i32 vs_frame_end(VsApp *app) {
@@ -180,4 +195,10 @@ void vs_push_constants(VsApp *app, void *ptr, u32 size) {
   if (!app || !app->renderer || size > sizeof(app->renderer->pushData))
     return;
   memcpy(app->renderer->pushData, ptr, size);
+}
+
+void vs_update_ubo(VsApp *app, void *data, u32 size) {
+  if (!app || !app->renderer)
+    return;
+  vs_renderer_update_ubo(app->renderer, app->device, data, size);
 }

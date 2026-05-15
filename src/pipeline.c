@@ -1,11 +1,13 @@
-#include "pipline.h"
+#include "pipeline.h"
 #include "logger.h"
 #include "utils/types.h"
 #include <stddef.h>
 #include <stdlib.h>
 
 VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
-                               VsShader vert, VsShader frag, u32 pushSize) {
+                               VsShader vert, VsShader frag, u32 pushSize,
+                               VkDescriptorSetLayout *setLayouts,
+                               u32 setLayoutCount) {
   vs_log_trace("creating graphics pipeline");
 
   VsPipeline *pipeline = malloc(sizeof(VsPipeline));
@@ -40,13 +42,21 @@ VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
   };
 
   VkVertexInputAttributeDescription attrs[4] = {
-      {.location = 0, .binding = 0, .format = VK_FORMAT_R32G32B32_SFLOAT,
+      {.location = 0,
+       .binding = 0,
+       .format = VK_FORMAT_R32G32B32_SFLOAT,
        .offset = offsetof(Vertex, position)},
-      {.location = 1, .binding = 0, .format = VK_FORMAT_R32G32B32_SFLOAT,
+      {.location = 1,
+       .binding = 0,
+       .format = VK_FORMAT_R32G32B32_SFLOAT,
        .offset = offsetof(Vertex, normal)},
-      {.location = 2, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+      {.location = 2,
+       .binding = 0,
+       .format = VK_FORMAT_R32G32B32A32_SFLOAT,
        .offset = offsetof(Vertex, color)},
-      {.location = 3, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT,
+      {.location = 3,
+       .binding = 0,
+       .format = VK_FORMAT_R32G32_SFLOAT,
        .offset = offsetof(Vertex, u)},
   };
 
@@ -118,6 +128,8 @@ VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
       .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
       .pushConstantRangeCount = pushSize > 0 ? 1 : 0,
       .pPushConstantRanges = pushSize > 0 ? &pushRange : NULL,
+      .setLayoutCount = setLayoutCount,
+      .pSetLayouts = setLayouts,
   };
 
   if (vkCreatePipelineLayout(device, &layoutInfo, NULL, &pipeline->layout) !=

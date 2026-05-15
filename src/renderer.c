@@ -1,6 +1,8 @@
 #include "renderer.h"
+#include "descriptor.h"
 #include "logger.h"
 #include "utils/globals.h"
+#include "utils/types.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -43,6 +45,21 @@ VsRenderer *vs_renderer_create(VsDevice *device) {
   r->clearColor = vs_color_clear_value(VS_COLOR_SKYBLUE);
   r->currentFrame = 0;
   memset(r->pushData, 0, sizeof(r->pushData));
+
+  VsDescriptorAllocator *descAlloc = &r->descAlloc;
+  VsPoolSizeRatio ratios[] = {
+      {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .ratio = 0.5f}};
+
+  vs_desc_alloc_init(descAlloc, 8, ratios, sizeof(ratios) / sizeof(*ratios));
+  vs_desc_alloc_init(&r->transientAlloc, 8, ratios,
+                      sizeof(ratios) / sizeof(*ratios));
+
+  VsDescriptorLayoutBuilder layoutBuilder;
+  vs_desc_layout_init(&layoutBuilder);
+  vs_desc_layout_add(&layoutBuilder, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                     VK_SHADER_STAGE_VERTEX_BIT);
+  r->sceneLayout = vs_desc_layout_build(&layoutBuilder, device->device);
+  vs_desc_layout_cleanup(&layoutBuilder);
 
   VkCommandPoolCreateInfo poolInfo = {
       .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -94,6 +111,20 @@ VsRenderer *vs_renderer_create(VsDevice *device) {
       free(r);
       return NULL;
     }
+    r->uboBuffers[i] = vs_create_buffer(
+        sizeof(Mat4), device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    r->sceneSets[i] =
+        vs_desc_alloc_allocate(descAlloc, device->device, r->sceneLayout);
+    VkWriteDescriptorSet writes[1];
+    VkDescriptorBufferInfo bufInfos[1];
+    VkDescriptorImageInfo imgInfos[1];
+    VsDescriptorWriter w;
+    vs_desc_writer_init(&w, bufInfos, imgInfos, writes, 1);
+    vs_desc_writer_write_buffer(&w, 0, r->uboBuffers[i].buffer, sizeof(Mat4), 0,
+                                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+    vs_desc_writer_update(&w, device->device, r->sceneSets[i]);
   }
 
   vs_log_trace("renderer created");
@@ -108,8 +139,11 @@ void vs_renderer_destroy(VsRenderer *renderer, VsDevice *device) {
     vkDestroyFence(device->device, renderer->inFlight[i], NULL);
     vkDestroySemaphore(device->device, renderer->renderFinished[i], NULL);
     vkDestroySemaphore(device->device, renderer->imageAvailable[i], NULL);
+    vs_destroy_buffer(&renderer->uboBuffers[i], device->device);
   }
   vkDestroyCommandPool(device->device, renderer->cmdPool, NULL);
+  vs_desc_alloc_destroy(&renderer->transientAlloc, device->device);
+  vs_desc_alloc_destroy(&renderer->descAlloc, device->device);
   free(renderer);
 }
 
@@ -120,7 +154,7 @@ void vs_renderer_set_clear_color(VsRenderer *renderer, VsColor color) {
 }
 
 i32 vs_renderer_frame_begin(VsRenderer *renderer, VsDevice *device,
-                            VsSwapchain *swapchain) {
+                             VsSwapchain *swapchain, VkClearValue clearColor) {
   u32 frame = renderer->currentFrame;
 
   vkWaitForFences(device->device, 1, &renderer->inFlight[frame], VK_TRUE,
@@ -160,7 +194,7 @@ i32 vs_renderer_frame_begin(VsRenderer *renderer, VsDevice *device,
       .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
       .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
       .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-      .clearValue = renderer->clearColor,
+      .clearValue = clearColor,
   };
   VkRenderingInfo renderInfo = {
       .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
@@ -192,7 +226,7 @@ void vs_renderer_draw(VsRenderer *renderer, VsPipeline *pipeline,
 }
 
 void vs_renderer_draw_mesh(VsRenderer *renderer, VsPipeline *pipeline,
-                            Mesh *mesh, VkExtent2D extent) {
+                           Mesh *mesh, VkExtent2D extent) {
   u32 frame = renderer->currentFrame;
   VkCommandBuffer cmd = renderer->cmdBufs[frame];
   VkDeviceSize offset = 0;
@@ -201,6 +235,9 @@ void vs_renderer_draw_mesh(VsRenderer *renderer, VsPipeline *pipeline,
   VkRect2D scissor = {{0, 0}, extent};
   vkCmdSetViewport(cmd, 0, 1, &vp);
   vkCmdSetScissor(cmd, 0, 1, &scissor);
+  vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          pipeline->layout, 0, 1, &renderer->sceneSets[frame],
+                          0, NULL);
   vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->handle);
   vkCmdPushConstants(cmd, pipeline->layout,
                      VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -261,4 +298,14 @@ i32 vs_renderer_frame_end(VsRenderer *renderer, VsDevice *device,
     return -1;
   }
   return 0;
+}
+
+void vs_renderer_update_ubo(VsRenderer *renderer, VsDevice *device, void *data,
+                            u32 size) {
+  u32 frame = renderer->currentFrame;
+  void *mapped;
+  vkMapMemory(device->device, renderer->uboBuffers[frame].memory, 0, size, 0,
+              &mapped);
+  memcpy(mapped, data, size);
+  vkUnmapMemory(device->device, renderer->uboBuffers[frame].memory);
 }

@@ -7,7 +7,15 @@ layout(location = 3) in vec2 uv;
 
 layout(location = 0) out vec4 fragColor;
 
+layout(binding = 0) uniform UBO {
+    mat4 vp;
+} ubo;
+
+layout(push_constant) uniform Push {
+    mat4 model;
+} pc;
+
 void main() {
-    gl_Position = vec4(position, 1.0);
+    gl_Position = ubo.vp * pc.model * vec4(position, 1.0);
     fragColor = color;
 }

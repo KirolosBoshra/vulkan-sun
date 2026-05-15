@@ -12,7 +12,9 @@ typedef struct {
 } VsPipeline;
 
 VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
-                               VsShader vert, VsShader frag, u32 pushSize);
+                               VsShader vert, VsShader frag, u32 pushSize,
+                               VkDescriptorSetLayout *setLayouts,
+                               u32 setLayoutCount);
 void vs_pipeline_destroy(VsPipeline *pipeline, VkDevice device);
 
 #endif
