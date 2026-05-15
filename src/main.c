@@ -48,9 +48,9 @@ i32 main(void) {
   if (cubeIdx < 0)
     VS_FAIL(app, window, "failed to create cube pipeline");
 
-  i32 backgroundIdx = vs_add_pipeline(app, SHADER_DIR "/background.vert.spv",
-                                      SHADER_DIR "/background.frag.spv",
-                                      (u32)sizeof(BackgroundPush));
+  i32 backgroundIdx = vs_add_pipeline_ex(
+      app, SHADER_DIR "/background.vert.spv", SHADER_DIR "/background.frag.spv",
+      (u32)sizeof(BackgroundPush), NULL, 0, false);
   vs_log_info("background pipeline index: %d", backgroundIdx);
   if (backgroundIdx < 0)
     VS_FAIL(app, window, "failed to create background pipeline");
@@ -98,6 +98,10 @@ i32 main(void) {
     i32 result = vs_frame_begin(app, VS_COLOR_BLACK);
     if (result == 1) {
       vs_app_resize(app, window);
+      if (window->resized)
+        window->resized = 0;
+      else
+        glfwWaitEvents();
       continue;
     }
     if (result < 0) {
@@ -106,20 +110,18 @@ i32 main(void) {
     }
 
     f32 t = (f32)glfwGetTime();
+
     BackgroundPush bgt = {.time = t};
-    vs_push_constants(app, &bgt, sizeof(bgt));
-    vs_draw(app, backgroundIdx);
+    vs_draw(app, backgroundIdx, &bgt, sizeof(bgt));
 
     Mat4 vp = camera_vp(&cam);
     vs_update_ubo(app, &vp, sizeof(vp));
 
     Mat4 model = mat4_rotate_y(MAT4_IDENTITY, t * 0.5f);
-    vs_push_constants(app, &model, sizeof(model));
-    vs_draw_mesh(app, cubeIdx, &cube);
+    vs_draw_mesh(app, cubeIdx, &cube, &model, sizeof(model));
 
     Mat4 model2 = mat4_translation((Vec3){0, 2, 0});
-    vs_push_constants(app, &model2, sizeof(model2));
-    vs_draw_mesh(app, cubeIdx, &smallCube);
+    vs_draw_mesh(app, cubeIdx, &smallCube, &model2, sizeof(model2));
 
     result = vs_frame_end(app);
     if (result == 1) {

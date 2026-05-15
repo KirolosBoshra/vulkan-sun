@@ -7,7 +7,8 @@
 #include <string.h>
 
 static void image_barrier(VkCommandBuffer cmd, VkImage image,
-                          VkImageLayout from, VkImageLayout to) {
+                          VkImageLayout from, VkImageLayout to,
+                          VkImageAspectFlags aspect) {
   VkImageMemoryBarrier2 b = {
       .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
       .srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
@@ -20,7 +21,7 @@ static void image_barrier(VkCommandBuffer cmd, VkImage image,
       .image = image,
       .subresourceRange =
           {
-              .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+              .aspectMask = aspect,
               .levelCount = 1,
               .layerCount = 1,
           },
@@ -31,6 +32,13 @@ static void image_barrier(VkCommandBuffer cmd, VkImage image,
       .pImageMemoryBarriers = &b,
   };
   vkCmdPipelineBarrier2(cmd, &dep);
+}
+
+static void set_viewport_scissor(VkCommandBuffer cmd, VkExtent2D extent) {
+  VkViewport vp = {0, 0, (f32)extent.width, (f32)extent.height, 0, 1};
+  VkRect2D scissor = {{0, 0}, extent};
+  vkCmdSetViewport(cmd, 0, 1, &vp);
+  vkCmdSetScissor(cmd, 0, 1, &scissor);
 }
 
 VsRenderer *vs_renderer_create(VsDevice *device) {
@@ -44,7 +52,6 @@ VsRenderer *vs_renderer_create(VsDevice *device) {
 
   r->clearColor = vs_color_clear_value(VS_COLOR_SKYBLUE);
   r->currentFrame = 0;
-  memset(r->pushData, 0, sizeof(r->pushData));
 
   VsDescriptorAllocator *descAlloc = &r->descAlloc;
   VsPoolSizeRatio ratios[] = {
@@ -52,7 +59,7 @@ VsRenderer *vs_renderer_create(VsDevice *device) {
 
   vs_desc_alloc_init(descAlloc, 8, ratios, sizeof(ratios) / sizeof(*ratios));
   vs_desc_alloc_init(&r->transientAlloc, 8, ratios,
-                      sizeof(ratios) / sizeof(*ratios));
+                     sizeof(ratios) / sizeof(*ratios));
 
   VsDescriptorLayoutBuilder layoutBuilder;
   vs_desc_layout_init(&layoutBuilder);
@@ -115,6 +122,8 @@ VsRenderer *vs_renderer_create(VsDevice *device) {
         sizeof(Mat4), device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    vkMapMemory(device->device, r->uboBuffers[i].memory, 0, sizeof(Mat4), 0,
+                &r->uboMapped[i]);
     r->sceneSets[i] =
         vs_desc_alloc_allocate(descAlloc, device->device, r->sceneLayout);
     VkWriteDescriptorSet writes[1];
@@ -139,6 +148,7 @@ void vs_renderer_destroy(VsRenderer *renderer, VsDevice *device) {
     vkDestroyFence(device->device, renderer->inFlight[i], NULL);
     vkDestroySemaphore(device->device, renderer->renderFinished[i], NULL);
     vkDestroySemaphore(device->device, renderer->imageAvailable[i], NULL);
+    vkUnmapMemory(device->device, renderer->uboBuffers[i].memory);
     vs_destroy_buffer(&renderer->uboBuffers[i], device->device);
   }
   vkDestroyCommandPool(device->device, renderer->cmdPool, NULL);
@@ -154,7 +164,7 @@ void vs_renderer_set_clear_color(VsRenderer *renderer, VsColor color) {
 }
 
 i32 vs_renderer_frame_begin(VsRenderer *renderer, VsDevice *device,
-                             VsSwapchain *swapchain, VkClearValue clearColor) {
+                            VsSwapchain *swapchain, VkClearValue clearColor) {
   u32 frame = renderer->currentFrame;
 
   vkWaitForFences(device->device, 1, &renderer->inFlight[frame], VK_TRUE,
@@ -186,7 +196,14 @@ i32 vs_renderer_frame_begin(VsRenderer *renderer, VsDevice *device,
   vkBeginCommandBuffer(cmd, &beginInfo);
 
   image_barrier(cmd, swapchain->images[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED,
-                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                VK_IMAGE_ASPECT_COLOR_BIT);
+
+  image_barrier(cmd, swapchain->depth.image, VK_IMAGE_LAYOUT_UNDEFINED,
+                VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+                VK_IMAGE_ASPECT_DEPTH_BIT);
+
+  VkClearValue depthClear = {.depthStencil = {.depth = 1.0f}};
 
   VkRenderingAttachmentInfo colorAtt = {
       .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
@@ -196,12 +213,21 @@ i32 vs_renderer_frame_begin(VsRenderer *renderer, VsDevice *device,
       .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
       .clearValue = clearColor,
   };
+  VkRenderingAttachmentInfo depthAtt = {
+      .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+      .imageView = swapchain->depth.view,
+      .imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+      .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+      .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+      .clearValue = depthClear,
+  };
   VkRenderingInfo renderInfo = {
       .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
       .renderArea = {.extent = swapchain->extent},
       .layerCount = 1,
       .colorAttachmentCount = 1,
       .pColorAttachments = &colorAtt,
+      .pDepthAttachment = &depthAtt,
   };
 
   vkCmdBeginRendering(cmd, &renderInfo);
@@ -210,38 +236,37 @@ i32 vs_renderer_frame_begin(VsRenderer *renderer, VsDevice *device,
 }
 
 void vs_renderer_draw(VsRenderer *renderer, VsPipeline *pipeline,
-                      VkExtent2D extent) {
+                      VkExtent2D extent, void *pushData, u32 pushSize) {
   u32 frame = renderer->currentFrame;
   VkCommandBuffer cmd = renderer->cmdBufs[frame];
 
-  VkViewport vp = {0, 0, (f32)extent.width, (f32)extent.height, 0, 1};
-  VkRect2D scissor = {{0, 0}, extent};
-  vkCmdSetViewport(cmd, 0, 1, &vp);
-  vkCmdSetScissor(cmd, 0, 1, &scissor);
+  set_viewport_scissor(cmd, extent);
   vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->handle);
-  vkCmdPushConstants(cmd, pipeline->layout,
-                     VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-                     0, pipeline->pushSize, renderer->pushData);
+  if (pushSize > 0)
+    vkCmdPushConstants(cmd, pipeline->layout,
+                       VK_SHADER_STAGE_VERTEX_BIT |
+                           VK_SHADER_STAGE_FRAGMENT_BIT,
+                       0, pushSize, pushData);
   vkCmdDraw(cmd, 3, 1, 0, 0);
 }
 
 void vs_renderer_draw_mesh(VsRenderer *renderer, VsPipeline *pipeline,
-                           Mesh *mesh, VkExtent2D extent) {
+                           Mesh *mesh, VkExtent2D extent, void *pushData,
+                           u32 pushSize) {
   u32 frame = renderer->currentFrame;
   VkCommandBuffer cmd = renderer->cmdBufs[frame];
   VkDeviceSize offset = 0;
 
-  VkViewport vp = {0, 0, (f32)extent.width, (f32)extent.height, 0, 1};
-  VkRect2D scissor = {{0, 0}, extent};
-  vkCmdSetViewport(cmd, 0, 1, &vp);
-  vkCmdSetScissor(cmd, 0, 1, &scissor);
+  set_viewport_scissor(cmd, extent);
   vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           pipeline->layout, 0, 1, &renderer->sceneSets[frame],
                           0, NULL);
   vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->handle);
-  vkCmdPushConstants(cmd, pipeline->layout,
-                     VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-                     0, pipeline->pushSize, renderer->pushData);
+  if (pushSize > 0)
+    vkCmdPushConstants(cmd, pipeline->layout,
+                       VK_SHADER_STAGE_VERTEX_BIT |
+                           VK_SHADER_STAGE_FRAGMENT_BIT,
+                       0, pushSize, pushData);
   vkCmdBindVertexBuffers(cmd, 0, 1, &mesh->vertexBuffer.buffer, &offset);
   vkCmdBindIndexBuffer(cmd, mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
   vkCmdDrawIndexed(cmd, mesh->indexCount, 1, 0, 0, 0);
@@ -257,7 +282,7 @@ i32 vs_renderer_frame_end(VsRenderer *renderer, VsDevice *device,
 
   image_barrier(cmd, swapchain->images[imageIndex],
                 VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+                VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_ASPECT_COLOR_BIT);
 
   vkEndCommandBuffer(cmd);
 
@@ -300,12 +325,7 @@ i32 vs_renderer_frame_end(VsRenderer *renderer, VsDevice *device,
   return 0;
 }
 
-void vs_renderer_update_ubo(VsRenderer *renderer, VsDevice *device, void *data,
-                            u32 size) {
+void vs_renderer_update_ubo(VsRenderer *renderer, void *data, u32 size) {
   u32 frame = renderer->currentFrame;
-  void *mapped;
-  vkMapMemory(device->device, renderer->uboBuffers[frame].memory, 0, size, 0,
-              &mapped);
-  memcpy(mapped, data, size);
-  vkUnmapMemory(device->device, renderer->uboBuffers[frame].memory);
+  memcpy(renderer->uboMapped[frame], data, size);
 }

@@ -3,6 +3,7 @@
 
 #include "shader.h"
 #include "utils/globals.h"
+#include <stdbool.h>
 #include <vulkan/vulkan.h>
 
 typedef struct {
@@ -14,7 +15,7 @@ typedef struct {
 VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
                                VsShader vert, VsShader frag, u32 pushSize,
                                VkDescriptorSetLayout *setLayouts,
-                               u32 setLayoutCount);
+                               u32 setLayoutCount, bool depthEnable);
 void vs_pipeline_destroy(VsPipeline *pipeline, VkDevice device);
 
 #endif

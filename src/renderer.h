@@ -27,7 +27,6 @@ typedef struct {
   VkClearValue clearColor;
   u32 currentFrame;
   u32 imageIndex;
-  u8 pushData[128];
 } VsRenderer;
 
 VsRenderer *vs_renderer_create(VsDevice *device);
@@ -38,11 +37,11 @@ void vs_renderer_set_clear_color(VsRenderer *renderer, VsColor color);
 i32 vs_renderer_frame_begin(VsRenderer *renderer, VsDevice *device,
                             VsSwapchain *swapchain, VkClearValue clearColor);
 void vs_renderer_draw(VsRenderer *renderer, VsPipeline *pipeline,
-                      VkExtent2D extent);
+                      VkExtent2D extent, void *pushData, u32 pushSize);
 void vs_renderer_draw_mesh(VsRenderer *renderer, VsPipeline *pipeline,
-                           Mesh *mesh, VkExtent2D extent);
-void vs_renderer_update_ubo(VsRenderer *renderer, VsDevice *device, void *data,
-                            u32 size);
+                           Mesh *mesh, VkExtent2D extent, void *pushData,
+                           u32 pushSize);
+void vs_renderer_update_ubo(VsRenderer *renderer, void *data, u32 size);
 i32 vs_renderer_frame_end(VsRenderer *renderer, VsDevice *device,
                           VsSwapchain *swapchain);
 

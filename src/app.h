@@ -30,15 +30,15 @@ const char *vs_app_gpu_name(VsApp *app);
 i32 vs_add_pipeline(VsApp *app, const char *vertPath, const char *fragPath,
                     u32 pushSize);
 i32 vs_add_pipeline_ex(VsApp *app, const char *vertPath, const char *fragPath,
-                       u32 pushSize, VkDescriptorSetLayout *setLayouts,
-                       u32 setLayoutCount);
+                        u32 pushSize, VkDescriptorSetLayout *setLayouts,
+                        u32 setLayoutCount, bool depthEnable);
 void vs_clear(VsApp *app, VsColor color);
 i32 vs_frame_begin(VsApp *app, VsColor clearColor);
-void vs_draw(VsApp *app, i32 pipelineIndex);
-void vs_draw_mesh(VsApp *app, i32 pipelineIndex, Mesh *mesh);
+void vs_draw(VsApp *app, i32 pipelineIndex, void *pushData, u32 pushSize);
+void vs_draw_mesh(VsApp *app, i32 pipelineIndex, Mesh *mesh,
+                   void *pushData, u32 pushSize);
 i32 vs_frame_end(VsApp *app);
 void vs_app_resize(VsApp *app, VsWindow *window);
-void vs_push_constants(VsApp *app, void *ptr, u32 size);
 void vs_update_ubo(VsApp *app, void *data, u32 size);
 
 #endif

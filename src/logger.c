@@ -51,6 +51,9 @@ void vs_log_write(VsLogLevel level, const char *file, i32 line, const char *fmt,
   vsnprintf(msg, sizeof msg, fmt, ap);
   va_end(ap);
 
-  fprintf(stderr, "%s[%s] %s:%d  %s\033[0m\n", levelColor(level),
-          levelLabel(level), file, line, msg);
+  char timeBuf[16];
+  strftime(timeBuf, sizeof timeBuf, "%H:%M:%S", &tm);
+
+  fprintf(stderr, "%s[%s] [%s] %s:%d  %s\033[0m\n",
+          levelColor(level), timeBuf, levelLabel(level), file, line, msg);
 }

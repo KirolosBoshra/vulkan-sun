@@ -1,13 +1,14 @@
 #include "pipeline.h"
 #include "logger.h"
 #include "utils/types.h"
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
 
 VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
                                VsShader vert, VsShader frag, u32 pushSize,
                                VkDescriptorSetLayout *setLayouts,
-                               u32 setLayoutCount) {
+                               u32 setLayoutCount, bool depthEnable) {
   vs_log_trace("creating graphics pipeline");
 
   VsPipeline *pipeline = malloc(sizeof(VsPipeline));
@@ -107,6 +108,13 @@ VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
       .pAttachments = &blendAttach,
   };
 
+  VkPipelineDepthStencilStateCreateInfo depthStencil = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+      .depthTestEnable = depthEnable,
+      .depthWriteEnable = depthEnable,
+      .depthCompareOp = VK_COMPARE_OP_LESS,
+  };
+
   const VkDynamicState dynamics[] = {
       VK_DYNAMIC_STATE_VIEWPORT,
       VK_DYNAMIC_STATE_SCISSOR,
@@ -143,6 +151,8 @@ VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
       .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
       .colorAttachmentCount = 1,
       .pColorAttachmentFormats = &colorFormat,
+      .depthAttachmentFormat =
+          depthEnable ? VK_FORMAT_D32_SFLOAT : VK_FORMAT_UNDEFINED,
   };
 
   VkGraphicsPipelineCreateInfo info = {
@@ -155,6 +165,7 @@ VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
       .pViewportState = &viewportState,
       .pRasterizationState = &rasterizer,
       .pMultisampleState = &multisampling,
+      .pDepthStencilState = &depthStencil,
       .pColorBlendState = &blending,
       .pDynamicState = &dynamic,
       .layout = pipeline->layout,
