@@ -94,8 +94,34 @@ if(VS_BUILD_TESTS)
     target_link_libraries(test_math PRIVATE m)
     add_test(NAME math COMMAND test_math)
 
+    add_executable(test_dynarr tests/test_dynarr.c)
+    target_include_directories(test_dynarr PRIVATE src)
+    target_link_libraries(test_dynarr PRIVATE m)
+    add_test(NAME dynarr COMMAND test_dynarr)
+
+    add_executable(test_camera tests/test_camera.c)
+    target_include_directories(test_camera PRIVATE src)
+    target_link_libraries(test_camera PRIVATE m)
+    add_test(NAME camera COMMAND test_camera)
+
+    add_executable(test_vertex tests/test_vertex.c)
+    target_include_directories(test_vertex PRIVATE src ${Vulkan_INCLUDE_DIRS}
+                                ${GLFW_INCLUDE_DIR})
+    target_link_libraries(test_vertex PRIVATE m)
+    add_test(NAME vertex COMMAND test_vertex)
+
+    add_executable(test_buffer tests/test_buffer.c
+        src/app.c src/core.c src/device.c src/window.c src/utils/types.c
+        src/logger.c src/shader.c src/swapchain.c src/renderer.c
+        src/pipeline.c src/descriptor.c src/mesh.c src/camera.h)
+    target_include_directories(test_buffer PRIVATE src ${Vulkan_INCLUDE_DIRS}
+                                ${GLFW_INCLUDE_DIR})
+    target_link_libraries(test_buffer PRIVATE Vulkan::Vulkan ${GLFW_LIBRARY}
+                            gdi32)
+    add_test(NAME buffer COMMAND test_buffer)
+
     add_custom_target(check
         COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIG> --output-on-failure
         USES_TERMINAL)
-    add_dependencies(check test_math)
+    add_dependencies(check test_math test_dynarr test_camera test_vertex test_buffer)
 endif()
