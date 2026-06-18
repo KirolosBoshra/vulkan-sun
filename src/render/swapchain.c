@@ -1,5 +1,5 @@
 #include "swapchain.h"
-#include "logger.h"
+#include "core/logger.h"
 #include "utils/globals.h"
 #include <stdlib.h>
 
@@ -33,7 +33,7 @@ static VkExtent2D pick_extent(const VkSurfaceCapabilitiesKHR *caps, u32 width,
 #undef CLAMP
 }
 
-static i32 create_views(VsSwapchain *sc) {
+static i32 create_views(Swapchain *sc) {
   for (u32 i = 0; i < sc->count; i++) {
     VkImageViewCreateInfo vi = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -50,7 +50,7 @@ static i32 create_views(VsSwapchain *sc) {
             },
     };
     if (vkCreateImageView(sc->device, &vi, NULL, &sc->views[i]) != VK_SUCCESS) {
-      vs_log_error("failed to create image view %u", i);
+      log_error("failed to create image view %u", i);
       for (u32 j = 0; j < i; j++)
         vkDestroyImageView(sc->device, sc->views[j], NULL);
       return -1;
@@ -59,7 +59,7 @@ static i32 create_views(VsSwapchain *sc) {
   return 0;
 }
 
-static i32 swapchain_build(VsSwapchain *sc, VsDevice *device, u32 width,
+static i32 swapchain_build(Swapchain *sc, Device *device, u32 width,
                            u32 height, VkSwapchainKHR old) {
   VkSurfaceCapabilitiesKHR caps;
   vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device->physical, sc->surface,
@@ -119,7 +119,7 @@ static i32 swapchain_build(VsSwapchain *sc, VsDevice *device, u32 width,
 
   if (vkCreateSwapchainKHR(device->device, &ci, NULL, &sc->handle) !=
       VK_SUCCESS) {
-    vs_log_error("failed to create swapchain");
+    log_error("failed to create swapchain");
     return -1;
   }
 
@@ -142,9 +142,9 @@ static i32 swapchain_build(VsSwapchain *sc, VsDevice *device, u32 width,
   }
 
   sc->depth =
-      vs_create_depth_image(device->device, device->physical, sc->extent);
+      create_depth_image(device->device, device->physical, sc->extent);
   if (!sc->depth.image) {
-    vs_log_error("failed to create depth image");
+    log_error("failed to create depth image");
     for (u32 i = 0; i < sc->count; i++)
       vkDestroyImageView(sc->device, sc->views[i], NULL);
     vkDestroySwapchainKHR(device->device, sc->handle, NULL);
@@ -156,13 +156,13 @@ static i32 swapchain_build(VsSwapchain *sc, VsDevice *device, u32 width,
   return 0;
 }
 
-VsSwapchain *vs_swapchain_create(VsDevice *device, VkSurfaceKHR surface,
+Swapchain *swapchain_create(Device *device, VkSurfaceKHR surface,
                                  u32 width, u32 height) {
-  vs_log_trace("creating swapchain: %ux%u", width, height);
+  log_trace("creating swapchain: %ux%u", width, height);
 
-  VsSwapchain *sc = malloc(sizeof *sc);
+  Swapchain *sc = malloc(sizeof *sc);
   if (!sc) {
-    vs_log_error("failed to allocate swapchain");
+    log_error("failed to allocate swapchain");
     return NULL;
   }
 
@@ -176,14 +176,14 @@ VsSwapchain *vs_swapchain_create(VsDevice *device, VkSurfaceKHR surface,
     return NULL;
   }
 
-  vs_log_trace("swapchain created: %ux%u, %u images", sc->extent.width,
+  log_trace("swapchain created: %ux%u, %u images", sc->extent.width,
                sc->extent.height, sc->count);
   return sc;
 }
 
-void vs_swapchain_recreate(VsSwapchain *sc, VsDevice *device, u32 width,
+void swapchain_recreate(Swapchain *sc, Device *device, u32 width,
                            u32 height) {
-  vs_log_trace("recreating swapchain: %ux%u", width, height);
+  log_trace("recreating swapchain: %ux%u", width, height);
 
   if (!sc)
     return;
@@ -195,7 +195,7 @@ void vs_swapchain_recreate(VsSwapchain *sc, VsDevice *device, u32 width,
   sc->images = NULL;
   sc->views = NULL;
 
-  vs_destroy_depth_image(sc->device, &sc->depth);
+  destroy_depth_image(sc->device, &sc->depth);
 
   VkSwapchainKHR old = sc->handle;
   sc->handle = VK_NULL_HANDLE;
@@ -205,14 +205,14 @@ void vs_swapchain_recreate(VsSwapchain *sc, VsDevice *device, u32 width,
   vkDestroySwapchainKHR(sc->device, old, NULL);
 }
 
-void vs_swapchain_destroy(VsSwapchain *sc) {
-  vs_log_trace("destroying swapchain");
+void swapchain_destroy(Swapchain *sc) {
+  log_trace("destroying swapchain");
   if (!sc)
     return;
   for (u32 i = 0; i < sc->count; i++)
     vkDestroyImageView(sc->device, sc->views[i], NULL);
   vkDestroySwapchainKHR(sc->device, sc->handle, NULL);
-  vs_destroy_depth_image(sc->device, &sc->depth);
+  destroy_depth_image(sc->device, &sc->depth);
   free(sc->images);
   free(sc->views);
   free(sc);

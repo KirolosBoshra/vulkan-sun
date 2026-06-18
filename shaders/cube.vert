@@ -13,9 +13,10 @@ layout(binding = 0) uniform UBO {
 
 layout(push_constant) uniform Push {
     mat4 model;
+    vec4 color;
 } pc;
 
 void main() {
     gl_Position = ubo.vp * pc.model * vec4(position, 1.0);
-    fragColor = color;
+    fragColor = color * pc.color;
 }

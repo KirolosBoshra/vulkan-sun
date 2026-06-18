@@ -13,10 +13,10 @@ typedef struct {
   VkQueue pQueue;
   u32 graphicsFamily;
   u32 presentFamily;
-} VsDevice;
+} Device;
 
-VsDevice *vs_device_create(VkInstance instance, VkSurfaceKHR surface);
-void vs_device_destroy(VsDevice *device);
+Device *device_create(VkInstance instance, VkSurfaceKHR surface);
+void device_destroy(Device *device);
 
 // helper functions
 i32 find_queue_family(VkPhysicalDevice physical, VkSurfaceKHR surface,

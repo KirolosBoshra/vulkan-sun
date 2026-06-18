@@ -6,10 +6,10 @@
 typedef struct {
   VkShaderModule module;
   VkShaderStageFlagBits stage;
-} VsShader;
+} Shader;
 
-VsShader vs_shader_create(VkDevice device, VkShaderStageFlagBits stage,
+Shader shader_create(VkDevice device, VkShaderStageFlagBits stage,
                           const char *spvPath);
-void vs_shader_destroy(VkDevice device, VsShader *shader);
+void shader_destroy(VkDevice device, Shader *shader);
 
 #endif

@@ -3,7 +3,7 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-void vs_init(void);
-void vs_terminate(void);
+void init(void);
+void terminate(void);
 
 #endif // CORE_H

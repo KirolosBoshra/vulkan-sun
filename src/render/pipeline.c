@@ -1,29 +1,36 @@
 #include "pipeline.h"
-#include "logger.h"
-#include "utils/types.h"
+#include "core/logger.h"
+#include "types/types.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
 
-VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
-                               VsShader vert, VsShader frag, u32 pushSize,
+Pipeline *pipeline_create(VkDevice device, VkFormat colorFormat,
+                               Shader vert, Shader frag, u32 pushSize,
                                VkDescriptorSetLayout *setLayouts,
                                u32 setLayoutCount, bool depthEnable) {
-  vs_log_trace("creating graphics pipeline");
+  log_trace("creating graphics pipeline");
 
-  VsPipeline *pipeline = malloc(sizeof(VsPipeline));
+  Pipeline *pipeline = malloc(sizeof(Pipeline));
   if (!pipeline) {
-    vs_log_error("failed to allocate pipeline");
+    log_error("failed to allocate pipeline");
     return NULL;
   }
 
   if (!vert.module || !frag.module) {
-    vs_log_error("invalid shader modules");
+    log_error("invalid shader modules");
     free(pipeline);
     return NULL;
   }
 
   pipeline->pushSize = pushSize;
+
+  VkPushConstantRange pushRange = {
+      .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+      .offset = 0,
+      .size = pushSize,
+  };
+  pipeline->pushStages = pushRange.stageFlags;
 
   VkPipelineShaderStageCreateInfo stages[2] = {
       {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -126,12 +133,6 @@ VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
       .pDynamicStates = dynamics,
   };
 
-  VkPushConstantRange pushRange = {
-      .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-      .offset = 0,
-      .size = pushSize,
-  };
-
   VkPipelineLayoutCreateInfo layoutInfo = {
       .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
       .pushConstantRangeCount = pushSize > 0 ? 1 : 0,
@@ -142,7 +143,7 @@ VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
 
   if (vkCreatePipelineLayout(device, &layoutInfo, NULL, &pipeline->layout) !=
       VK_SUCCESS) {
-    vs_log_error("failed to create pipeline layout");
+    log_error("failed to create pipeline layout");
     free(pipeline);
     return NULL;
   }
@@ -174,18 +175,18 @@ VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
 
   if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &info, NULL,
                                 &pipeline->handle) != VK_SUCCESS) {
-    vs_log_error("failed to create graphics pipeline");
+    log_error("failed to create graphics pipeline");
     vkDestroyPipelineLayout(device, pipeline->layout, NULL);
     free(pipeline);
     return NULL;
   }
 
-  vs_log_trace("pipeline created");
+  log_trace("pipeline created");
   return pipeline;
 }
 
-void vs_pipeline_destroy(VsPipeline *pipeline, VkDevice device) {
-  vs_log_trace("destroying pipeline");
+void pipeline_destroy(Pipeline *pipeline, VkDevice device) {
+  log_trace("destroying pipeline");
   if (!pipeline)
     return;
   vkDestroyPipeline(device, pipeline->handle, NULL);

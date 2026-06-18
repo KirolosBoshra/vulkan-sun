@@ -38,10 +38,14 @@ file(GLOB_RECURSE HEADERS CONFIGURE_DEPENDS src/*.h)
 
 add_executable(vulkan_sun ${SOURCES} ${HEADERS})
 
+# auxiliary sources shared by test executables (everything under src/ except main.c)
+file(GLOB_RECURSE LIB_SOURCES CONFIGURE_DEPENDS src/*.c src/*.h)
+list(REMOVE_ITEM LIB_SOURCES "${CMAKE_SOURCE_DIR}/src/main.c")
+
 target_include_directories(vulkan_sun PRIVATE src ${GLFW_INCLUDE_DIR})
 target_link_libraries(vulkan_sun PRIVATE Vulkan::Vulkan ${GLFW_LIBRARY} gdi32)
 target_compile_definitions(vulkan_sun PRIVATE
-    $<$<CONFIG:Debug>:VS_LOGGING>
+    $<$<CONFIG:Debug>:LOGGING>
     SHADER_DIR="${CMAKE_CURRENT_BINARY_DIR}")
 
 file(GLOB SHADER_SOURCES CONFIGURE_DEPENDS
@@ -110,18 +114,22 @@ if(VS_BUILD_TESTS)
     target_link_libraries(test_vertex PRIVATE m)
     add_test(NAME vertex COMMAND test_vertex)
 
-    add_executable(test_buffer tests/test_buffer.c
-        src/app.c src/core.c src/device.c src/window.c src/utils/types.c
-        src/logger.c src/shader.c src/swapchain.c src/renderer.c
-        src/pipeline.c src/descriptor.c src/mesh.c src/camera.h)
+    add_executable(test_buffer tests/test_buffer.c ${LIB_SOURCES})
     target_include_directories(test_buffer PRIVATE src ${Vulkan_INCLUDE_DIRS}
                                 ${GLFW_INCLUDE_DIR})
     target_link_libraries(test_buffer PRIVATE Vulkan::Vulkan ${GLFW_LIBRARY}
                             gdi32)
     add_test(NAME buffer COMMAND test_buffer)
 
+    add_executable(test_resource tests/test_resource.c ${LIB_SOURCES})
+    target_include_directories(test_resource PRIVATE src ${Vulkan_INCLUDE_DIRS}
+                                ${GLFW_INCLUDE_DIR})
+    target_link_libraries(test_resource PRIVATE Vulkan::Vulkan ${GLFW_LIBRARY}
+                            gdi32)
+    add_test(NAME resource COMMAND test_resource)
+
     add_custom_target(check
         COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIG> --output-on-failure
         USES_TERMINAL)
-    add_dependencies(check test_math test_dynarr test_camera test_vertex test_buffer)
+    add_dependencies(check test_math test_dynarr test_camera test_vertex test_buffer test_resource)
 endif()

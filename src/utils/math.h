@@ -57,7 +57,8 @@ static inline Vec2 vec2_scale(Vec2 v, f32 s) {
 
 static inline Vec2 vec2_normalize(Vec2 v) {
   f32 len = sqrtf(v.x * v.x + v.y * v.y);
-  if (len < 1e-8f) return (Vec2){0, 0};
+  if (len < 1e-8f)
+    return (Vec2){0, 0};
   f32 inv = 1.0f / len;
   return (Vec2){v.x * inv, v.y * inv};
 }
@@ -105,7 +106,8 @@ static inline Vec3 vec3_negate(Vec3 v) { return (Vec3){-v.x, -v.y, -v.z}; }
 
 static inline Vec3 vec3_normalize(Vec3 v) {
   f32 len = sqrtf(v.x * v.x + v.y * v.y + v.z * v.z);
-  if (len < 1e-8f) return (Vec3){0, 0, 0};
+  if (len < 1e-8f)
+    return (Vec3){0, 0, 0};
   f32 inv = 1.0f / len;
   return (Vec3){v.x * inv, v.y * inv, v.z * inv};
 }
@@ -158,7 +160,8 @@ static inline f32 vec4_length(Vec4 v) {
 
 static inline Vec4 vec4_normalize(Vec4 v) {
   f32 len = vec4_length(v);
-  if (len < 1e-8f) return (Vec4){0, 0, 0, 0};
+  if (len < 1e-8f)
+    return (Vec4){0, 0, 0, 0};
   f32 inv = 1.0f / len;
   return (Vec4){v.x * inv, v.y * inv, v.z * inv, v.w * inv};
 }
@@ -170,7 +173,8 @@ static inline Vec4 vec4_lerp(Vec4 a, Vec4 b, f32 t) {
 
 // homogeneous divide
 static inline Vec3 vec4_to_vec3(Vec4 v) {
-  if (v.w == 0.0f) return (Vec3){0, 0, 0};
+  if (v.w == 0.0f)
+    return (Vec3){0, 0, 0};
   f32 inv = 1.0f / v.w;
   return (Vec3){v.x * inv, v.y * inv, v.z * inv};
 }
@@ -217,9 +221,8 @@ static inline Quat quat_slerp(Quat a, Quat b, f32 t) {
 
   if (cos_half_theta >= 1.0f) {
     f32 ta = 1.0f - t;
-    return quat_normalize((Quat){
-        a.x * ta + b.x * t, a.y * ta + b.y * t,
-        a.z * ta + b.z * t, a.w * ta + b.w * t});
+    return quat_normalize((Quat){a.x * ta + b.x * t, a.y * ta + b.y * t,
+                                 a.z * ta + b.z * t, a.w * ta + b.w * t});
   }
 
   if (cos_half_theta < 0.0f) {
@@ -232,9 +235,8 @@ static inline Quat quat_slerp(Quat a, Quat b, f32 t) {
 
   if (sin_half_theta < 0.001f) {
     f32 ta = 1.0f - t;
-    return quat_normalize((Quat){
-        a.x * ta + b.x * t, a.y * ta + b.y * t,
-        a.z * ta + b.z * t, a.w * ta + b.w * t});
+    return quat_normalize((Quat){a.x * ta + b.x * t, a.y * ta + b.y * t,
+                                 a.z * ta + b.z * t, a.w * ta + b.w * t});
   }
 
   f32 ratio_a = sinf((1 - t) * half_theta) / sin_half_theta;
@@ -249,7 +251,8 @@ static inline Quat quat_from_axis_angle(Vec3 axis, f32 angle_rad) {
   f32 half_angle = angle_rad * 0.5f;
   f32 s = sinf(half_angle);
   f32 len = vec3_length(axis);
-  return (Quat){axis.x / len * s, axis.y / len * s, axis.z / len * s, cosf(half_angle)};
+  return (Quat){axis.x / len * s, axis.y / len * s, axis.z / len * s,
+                cosf(half_angle)};
 }
 
 static inline Mat4 quat_to_mat4(Quat q) {
@@ -282,7 +285,7 @@ static inline Mat4 quat_to_mat4(Quat q) {
 // Mat4 operations
 
 // fully unrolled matrix multiplication, I hate loops
-// this ugly but no loops
+// this ugly but no loops, i know compiler will optimize loops but who cares
 static inline Mat4 mat4_mul(Mat4 a, Mat4 b) {
   Mat4 r;
   // col 0
@@ -328,7 +331,7 @@ static Mat4 mat4_perspective(f32 fovy_rad, f32 aspect, f32 z_near, f32 z_far) {
   f32 tan_half = tanf(fovy_rad * 0.5f);
   Mat4 m = {0};
   m.m[0][0] = 1.0f / (aspect * tan_half);
-  m.m[1][1] = -1.0f / tan_half;   // Y-flip for Vulkan
+  m.m[1][1] = -1.0f / tan_half;         // Y-flip for Vulkan
   m.m[2][2] = z_far / (z_near - z_far); // depth [0,1]
   m.m[2][3] = -1.0f;
   m.m[3][2] = -(z_far * z_near) / (z_far - z_near);
@@ -467,12 +470,18 @@ static inline Mat4 mat4_look_at(Vec3 eye, Vec3 center, Vec3 up) {
   Vec3 u = vec3_cross(r, f);
 
   Mat4 m = {0};
-  m.m[0][0] =  r.x; m.m[1][0] =  r.y; m.m[2][0] =  r.z;
-  m.m[0][1] =  u.x; m.m[1][1] =  u.y; m.m[2][1] =  u.z;
-  m.m[0][2] = -f.x; m.m[1][2] = -f.y; m.m[2][2] = -f.z;
+  m.m[0][0] = r.x;
+  m.m[1][0] = r.y;
+  m.m[2][0] = r.z;
+  m.m[0][1] = u.x;
+  m.m[1][1] = u.y;
+  m.m[2][1] = u.z;
+  m.m[0][2] = -f.x;
+  m.m[1][2] = -f.y;
+  m.m[2][2] = -f.z;
   m.m[3][0] = -vec3_dot(r, eye);
   m.m[3][1] = -vec3_dot(u, eye);
-  m.m[3][2] =  vec3_dot(f, eye);
+  m.m[3][2] = vec3_dot(f, eye);
   m.m[3][3] = 1.0f;
   return m;
 }
@@ -497,15 +506,15 @@ static inline Vec3 mat4_transform_dir(Mat4 m, Vec3 d) {
 }
 
 static inline Mat4 mat4_ortho(f32 left, f32 right, f32 bottom, f32 top,
-                               f32 z_near, f32 z_far) {
+                              f32 z_near, f32 z_far) {
   Mat4 m = {0};
-  m.m[0][0] =  2.0f / (right - left);
+  m.m[0][0] = 2.0f / (right - left);
   m.m[1][1] = -2.0f / (top - bottom);
   m.m[2][2] = -1.0f / (z_far - z_near);
-  m.m[3][0] = -(right + left)   / (right - left);
-  m.m[3][1] =  (top   + bottom) / (top   - bottom);
+  m.m[3][0] = -(right + left) / (right - left);
+  m.m[3][1] = (top + bottom) / (top - bottom);
   m.m[3][2] = -z_near / (z_far - z_near);
-  m.m[3][3] =  1.0f;
+  m.m[3][3] = 1.0f;
   return m;
 }
 

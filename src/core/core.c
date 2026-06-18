@@ -1,7 +1,7 @@
 #include "core.h"
-void vs_init(void) {
+void init(void) {
   glfwInit();
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 }
 
-void vs_terminate(void) { glfwTerminate(); }
+void terminate(void) { glfwTerminate(); }

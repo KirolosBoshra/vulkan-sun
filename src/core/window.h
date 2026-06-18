@@ -11,12 +11,12 @@ typedef struct {
   VkSurfaceKHR surface;
   VkInstance instance;
   i32 resized;
-} VsWindow;
+} Window;
 
-VsWindow *vs_window_create(VkInstance instance, u32 width, u32 height,
+Window *window_create(VkInstance instance, u32 width, u32 height,
                            const char *title);
-void vs_window_destroy(VsWindow *window);
-bool vs_window_should_close(VsWindow *window);
-void vs_window_get_size(VsWindow *window, u32 *width, u32 *height);
+void window_destroy(Window *window);
+bool window_should_close(Window *window);
+void window_get_size(Window *window, u32 *width, u32 *height);
 
 #endif

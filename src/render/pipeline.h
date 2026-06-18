@@ -1,7 +1,7 @@
 #ifndef PIPLINE_H
 #define PIPLINE_H
 
-#include "shader.h"
+#include "types/shader.h"
 #include "utils/globals.h"
 #include <stdbool.h>
 #include <vulkan/vulkan.h>
@@ -9,13 +9,14 @@
 typedef struct {
   VkPipeline handle;
   VkPipelineLayout layout;
+  VkShaderStageFlags pushStages;
   u32 pushSize;
-} VsPipeline;
+} Pipeline;
 
-VsPipeline *vs_pipeline_create(VkDevice device, VkFormat colorFormat,
-                               VsShader vert, VsShader frag, u32 pushSize,
+Pipeline *pipeline_create(VkDevice device, VkFormat colorFormat,
+                               Shader vert, Shader frag, u32 pushSize,
                                VkDescriptorSetLayout *setLayouts,
                                u32 setLayoutCount, bool depthEnable);
-void vs_pipeline_destroy(VsPipeline *pipeline, VkDevice device);
+void pipeline_destroy(Pipeline *pipeline, VkDevice device);
 
 #endif

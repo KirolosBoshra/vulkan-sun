@@ -1,7 +1,7 @@
 #include "types.h"
-#include "logger.h"
+#include "core/logger.h"
 
-u32 vs_find_memory_type(VkPhysicalDevice physical, u32 typeBits,
+u32 find_memory_type(VkPhysicalDevice physical, u32 typeBits,
                         VkMemoryPropertyFlags props) {
   VkPhysicalDeviceMemoryProperties mem;
   vkGetPhysicalDeviceMemoryProperties(physical, &mem);
@@ -12,7 +12,7 @@ u32 vs_find_memory_type(VkPhysicalDevice physical, u32 typeBits,
   return UINT32_MAX;
 }
 
-Buffer vs_create_buffer(usize size, VsDevice *device, VkBufferUsageFlags usage,
+Buffer create_buffer(usize size, Device *device, VkBufferUsageFlags usage,
                         VkMemoryPropertyFlags properties) {
   Buffer buffer;
 
@@ -25,7 +25,7 @@ Buffer vs_create_buffer(usize size, VsDevice *device, VkBufferUsageFlags usage,
 
   if (vkCreateBuffer(device->device, &bufferInfo, NULL, &buffer.buffer) !=
       VK_SUCCESS) {
-    vs_log_error("Failed to create buffer!");
+    log_error("Failed to create buffer!");
     return (Buffer){0};
   }
 
@@ -38,11 +38,11 @@ Buffer vs_create_buffer(usize size, VsDevice *device, VkBufferUsageFlags usage,
   VkMemoryAllocateInfo allocInfo = {0};
   allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
   allocInfo.allocationSize = memRequirements.size;
-  allocInfo.memoryTypeIndex = vs_find_memory_type(
+  allocInfo.memoryTypeIndex = find_memory_type(
       device->physical, memRequirements.memoryTypeBits, properties);
   if (vkAllocateMemory(device->device, &allocInfo, NULL, &buffer.memory) !=
       VK_SUCCESS) {
-    vs_log_error("Failed to allocate buffer memory!");
+    log_error("Failed to allocate buffer memory!");
     vkDestroyBuffer(device->device, buffer.buffer, NULL);
     return (Buffer){0};
   }
@@ -54,14 +54,14 @@ Buffer vs_create_buffer(usize size, VsDevice *device, VkBufferUsageFlags usage,
   return buffer;
 }
 
-void vs_destroy_buffer(Buffer *buffer, VkDevice device) {
+void destroy_buffer(Buffer *buffer, VkDevice device) {
   vkDestroyBuffer(device, buffer->buffer, NULL);
   vkFreeMemory(device, buffer->memory, NULL);
 }
 
 // <TODO> This is a bit of a hack, we should really be using command buffers
 // and queues
-void vs_copy_buffer(VsDevice *device, VkBuffer src, VkBuffer dst, usize size) {
+void copy_buffer(Device *device, VkBuffer src, VkBuffer dst, usize size) {
   VkCommandPool pool;
   vkCreateCommandPool(device->device,
                       &(VkCommandPoolCreateInfo){
@@ -97,7 +97,7 @@ void vs_copy_buffer(VsDevice *device, VkBuffer src, VkBuffer dst, usize size) {
   vkDestroyCommandPool(device->device, pool, NULL);
 }
 
-DepthImage vs_create_depth_image(VkDevice device, VkPhysicalDevice physical,
+DepthImage create_depth_image(VkDevice device, VkPhysicalDevice physical,
                                  VkExtent2D extent) {
   DepthImage di = {0};
 
@@ -115,7 +115,7 @@ DepthImage vs_create_depth_image(VkDevice device, VkPhysicalDevice physical,
   };
 
   if (vkCreateImage(device, &imageInfo, NULL, &di.image) != VK_SUCCESS) {
-    vs_log_error("failed to create depth image");
+    log_error("failed to create depth image");
     return di;
   }
 
@@ -125,12 +125,12 @@ DepthImage vs_create_depth_image(VkDevice device, VkPhysicalDevice physical,
   VkMemoryAllocateInfo allocInfo = {
       .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
       .allocationSize = reqs.size,
-      .memoryTypeIndex = vs_find_memory_type(
+      .memoryTypeIndex = find_memory_type(
           physical, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
   };
 
   if (vkAllocateMemory(device, &allocInfo, NULL, &di.memory) != VK_SUCCESS) {
-    vs_log_error("failed to allocate depth memory");
+    log_error("failed to allocate depth memory");
     vkDestroyImage(device, di.image, NULL);
     return (DepthImage){0};
   }
@@ -153,7 +153,7 @@ DepthImage vs_create_depth_image(VkDevice device, VkPhysicalDevice physical,
   };
 
   if (vkCreateImageView(device, &viewInfo, NULL, &di.view) != VK_SUCCESS) {
-    vs_log_error("failed to create depth image view");
+    log_error("failed to create depth image view");
     vkFreeMemory(device, di.memory, NULL);
     vkDestroyImage(device, di.image, NULL);
     return (DepthImage){0};
@@ -162,7 +162,7 @@ DepthImage vs_create_depth_image(VkDevice device, VkPhysicalDevice physical,
   return di;
 }
 
-void vs_destroy_depth_image(VkDevice device, DepthImage *di) {
+void destroy_depth_image(VkDevice device, DepthImage *di) {
   if (!di || !di->image)
     return;
   vkDestroyImageView(device, di->view, NULL);

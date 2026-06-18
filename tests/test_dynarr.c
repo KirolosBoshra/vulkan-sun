@@ -1,4 +1,4 @@
-#include "utils/dynarr.h"
+#include "core/dynarr.h"
 #include <assert.h>
 #include <stdio.h>
 

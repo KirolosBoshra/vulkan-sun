@@ -1,8 +1,8 @@
 #include "renderer.h"
 #include "descriptor.h"
-#include "logger.h"
+#include "core/logger.h"
 #include "utils/globals.h"
-#include "utils/types.h"
+#include "types/types.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -41,32 +41,32 @@ static void set_viewport_scissor(VkCommandBuffer cmd, VkExtent2D extent) {
   vkCmdSetScissor(cmd, 0, 1, &scissor);
 }
 
-VsRenderer *vs_renderer_create(VsDevice *device) {
-  vs_log_trace("creating renderer");
+Renderer *renderer_create(Device *device, u32 uboSize) {
+  log_trace("creating renderer");
 
-  VsRenderer *r = malloc(sizeof *r);
+  Renderer *r = malloc(sizeof *r);
   if (!r) {
-    vs_log_error("failed to allocate renderer");
+    log_error("failed to allocate renderer");
     return NULL;
   }
 
-  r->clearColor = vs_color_clear_value(VS_COLOR_SKYBLUE);
+  r->clearColor = color_clear_value(COLOR_SKYBLUE);
   r->currentFrame = 0;
 
-  VsDescriptorAllocator *descAlloc = &r->descAlloc;
-  VsPoolSizeRatio ratios[] = {
+  DescriptorAllocator *descAlloc = &r->descAlloc;
+  PoolSizeRatio ratios[] = {
       {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .ratio = 0.5f}};
 
-  vs_desc_alloc_init(descAlloc, 8, ratios, sizeof(ratios) / sizeof(*ratios));
-  vs_desc_alloc_init(&r->transientAlloc, 8, ratios,
+  desc_alloc_init(descAlloc, 8, ratios, sizeof(ratios) / sizeof(*ratios));
+  desc_alloc_init(&r->transientAlloc, 8, ratios,
                      sizeof(ratios) / sizeof(*ratios));
 
-  VsDescriptorLayoutBuilder layoutBuilder;
-  vs_desc_layout_init(&layoutBuilder);
-  vs_desc_layout_add(&layoutBuilder, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+  DescriptorLayoutBuilder layoutBuilder;
+  desc_layout_init(&layoutBuilder);
+  desc_layout_add(&layoutBuilder, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                      VK_SHADER_STAGE_VERTEX_BIT);
-  r->sceneLayout = vs_desc_layout_build(&layoutBuilder, device->device);
-  vs_desc_layout_cleanup(&layoutBuilder);
+  r->sceneLayout = desc_layout_build(&layoutBuilder, device->device);
+  desc_layout_cleanup(&layoutBuilder);
 
   VkCommandPoolCreateInfo poolInfo = {
       .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -75,7 +75,7 @@ VsRenderer *vs_renderer_create(VsDevice *device) {
   };
   if (vkCreateCommandPool(device->device, &poolInfo, NULL, &r->cmdPool) !=
       VK_SUCCESS) {
-    vs_log_error("failed to create command pool");
+    log_error("failed to create command pool");
     free(r);
     return NULL;
   }
@@ -84,11 +84,11 @@ VsRenderer *vs_renderer_create(VsDevice *device) {
       .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
       .commandPool = r->cmdPool,
       .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-      .commandBufferCount = VS_MAX_FRAMES_IN_FLIGHT,
+      .commandBufferCount = MAX_FRAMES_IN_FLIGHT,
   };
   if (vkAllocateCommandBuffers(device->device, &allocInfo, r->cmdBufs) !=
       VK_SUCCESS) {
-    vs_log_error("failed to allocate command buffers");
+    log_error("failed to allocate command buffers");
     vkDestroyCommandPool(device->device, r->cmdPool, NULL);
     free(r);
     return NULL;
@@ -101,14 +101,14 @@ VsRenderer *vs_renderer_create(VsDevice *device) {
       .flags = VK_FENCE_CREATE_SIGNALED_BIT,
   };
 
-  for (i32 i = 0; i < VS_MAX_FRAMES_IN_FLIGHT; i++) {
+  for (i32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
     if (vkCreateSemaphore(device->device, &semInfo, NULL,
                           &r->imageAvailable[i]) != VK_SUCCESS ||
         vkCreateSemaphore(device->device, &semInfo, NULL,
                           &r->renderFinished[i]) != VK_SUCCESS ||
         vkCreateFence(device->device, &fenceInfo, NULL, &r->inFlight[i]) !=
             VK_SUCCESS) {
-      vs_log_error("failed to create sync objects for frame %d", i);
+      log_error("failed to create sync objects for frame %d", i);
       for (i32 j = 0; j < i; j++) {
         vkDestroyFence(device->device, r->inFlight[j], NULL);
         vkDestroySemaphore(device->device, r->renderFinished[j], NULL);
@@ -118,53 +118,55 @@ VsRenderer *vs_renderer_create(VsDevice *device) {
       free(r);
       return NULL;
     }
-    r->uboBuffers[i] = vs_create_buffer(
+    r->uboBuffers[i] = create_buffer(
         sizeof(Mat4), device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     vkMapMemory(device->device, r->uboBuffers[i].memory, 0, sizeof(Mat4), 0,
                 &r->uboMapped[i]);
     r->sceneSets[i] =
-        vs_desc_alloc_allocate(descAlloc, device->device, r->sceneLayout);
+        desc_alloc_allocate(descAlloc, device->device, r->sceneLayout);
     VkWriteDescriptorSet writes[1];
     VkDescriptorBufferInfo bufInfos[1];
     VkDescriptorImageInfo imgInfos[1];
-    VsDescriptorWriter w;
-    vs_desc_writer_init(&w, bufInfos, imgInfos, writes, 1);
-    vs_desc_writer_write_buffer(&w, 0, r->uboBuffers[i].buffer, sizeof(Mat4), 0,
+    DescriptorWriter w;
+    desc_writer_init(&w, bufInfos, imgInfos, writes, 1);
+    desc_writer_write_buffer(&w, 0, r->uboBuffers[i].buffer, sizeof(Mat4), 0,
                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-    vs_desc_writer_update(&w, device->device, r->sceneSets[i]);
+    desc_writer_update(&w, device->device, r->sceneSets[i]);
   }
 
-  vs_log_trace("renderer created");
+  r->uboSize = uboSize;
+
+  log_trace("renderer created");
   return r;
 }
 
-void vs_renderer_destroy(VsRenderer *renderer, VsDevice *device) {
-  vs_log_trace("destroying renderer");
+void renderer_destroy(Renderer *renderer, Device *device) {
+  log_trace("destroying renderer");
   if (!renderer)
     return;
-  for (usize i = 0; i < VS_MAX_FRAMES_IN_FLIGHT; i++) {
+  for (usize i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
     vkDestroyFence(device->device, renderer->inFlight[i], NULL);
     vkDestroySemaphore(device->device, renderer->renderFinished[i], NULL);
     vkDestroySemaphore(device->device, renderer->imageAvailable[i], NULL);
     vkUnmapMemory(device->device, renderer->uboBuffers[i].memory);
-    vs_destroy_buffer(&renderer->uboBuffers[i], device->device);
+    destroy_buffer(&renderer->uboBuffers[i], device->device);
   }
   vkDestroyCommandPool(device->device, renderer->cmdPool, NULL);
-  vs_desc_alloc_destroy(&renderer->transientAlloc, device->device);
-  vs_desc_alloc_destroy(&renderer->descAlloc, device->device);
+  desc_alloc_destroy(&renderer->transientAlloc, device->device);
+  desc_alloc_destroy(&renderer->descAlloc, device->device);
   free(renderer);
 }
 
-void vs_renderer_set_clear_color(VsRenderer *renderer, VsColor color) {
+void renderer_set_clear_color(Renderer *renderer, Color color) {
   if (!renderer)
     return;
-  renderer->clearColor = vs_color_clear_value(color);
+  renderer->clearColor = color_clear_value(color);
 }
 
-i32 vs_renderer_frame_begin(VsRenderer *renderer, VsDevice *device,
-                            VsSwapchain *swapchain, VkClearValue clearColor) {
+i32 renderer_frame_begin(Renderer *renderer, Device *device,
+                            Swapchain *swapchain, VkClearValue clearColor) {
   u32 frame = renderer->currentFrame;
 
   vkWaitForFences(device->device, 1, &renderer->inFlight[frame], VK_TRUE,
@@ -178,7 +180,7 @@ i32 vs_renderer_frame_begin(VsRenderer *renderer, VsDevice *device,
   if (result == VK_ERROR_OUT_OF_DATE_KHR)
     return 1;
   if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-    vs_log_error("vkAcquireNextImageKHR failed");
+    log_error("vkAcquireNextImageKHR failed");
     return -1;
   }
 
@@ -235,24 +237,25 @@ i32 vs_renderer_frame_begin(VsRenderer *renderer, VsDevice *device,
   return 0;
 }
 
-void vs_renderer_draw(VsRenderer *renderer, VsPipeline *pipeline,
-                      VkExtent2D extent, void *pushData, u32 pushSize) {
+void renderer_push_constants(Renderer *renderer, Pipeline *pipeline,
+                                void *data) {
+  u32 frame = renderer->currentFrame;
+  VkCommandBuffer cmd = renderer->cmdBufs[frame];
+  vkCmdPushConstants(cmd, pipeline->layout, pipeline->pushStages, 0,
+                     pipeline->pushSize, data);
+}
+
+void renderer_draw(Renderer *renderer, Pipeline *pipeline, VkExtent2D extent) {
   u32 frame = renderer->currentFrame;
   VkCommandBuffer cmd = renderer->cmdBufs[frame];
 
   set_viewport_scissor(cmd, extent);
   vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->handle);
-  if (pushSize > 0)
-    vkCmdPushConstants(cmd, pipeline->layout,
-                       VK_SHADER_STAGE_VERTEX_BIT |
-                           VK_SHADER_STAGE_FRAGMENT_BIT,
-                       0, pushSize, pushData);
   vkCmdDraw(cmd, 3, 1, 0, 0);
 }
 
-void vs_renderer_draw_mesh(VsRenderer *renderer, VsPipeline *pipeline,
-                           Mesh *mesh, VkExtent2D extent, void *pushData,
-                           u32 pushSize) {
+void renderer_draw_mesh(Renderer *renderer, Pipeline *pipeline, Mesh *mesh,
+                           VkExtent2D extent) {
   u32 frame = renderer->currentFrame;
   VkCommandBuffer cmd = renderer->cmdBufs[frame];
   VkDeviceSize offset = 0;
@@ -262,18 +265,13 @@ void vs_renderer_draw_mesh(VsRenderer *renderer, VsPipeline *pipeline,
                           pipeline->layout, 0, 1, &renderer->sceneSets[frame],
                           0, NULL);
   vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->handle);
-  if (pushSize > 0)
-    vkCmdPushConstants(cmd, pipeline->layout,
-                       VK_SHADER_STAGE_VERTEX_BIT |
-                           VK_SHADER_STAGE_FRAGMENT_BIT,
-                       0, pushSize, pushData);
   vkCmdBindVertexBuffers(cmd, 0, 1, &mesh->vertexBuffer.buffer, &offset);
   vkCmdBindIndexBuffer(cmd, mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
   vkCmdDrawIndexed(cmd, mesh->indexCount, 1, 0, 0, 0);
 }
 
-i32 vs_renderer_frame_end(VsRenderer *renderer, VsDevice *device,
-                          VsSwapchain *swapchain) {
+i32 renderer_frame_end(Renderer *renderer, Device *device,
+                          Swapchain *swapchain) {
   u32 frame = renderer->currentFrame;
   VkCommandBuffer cmd = renderer->cmdBufs[frame];
   u32 imageIndex = renderer->imageIndex;
@@ -300,7 +298,7 @@ i32 vs_renderer_frame_end(VsRenderer *renderer, VsDevice *device,
   };
   if (vkQueueSubmit(device->qQueue, 1, &submitInfo,
                     renderer->inFlight[frame]) != VK_SUCCESS) {
-    vs_log_error("vkQueueSubmit failed");
+    log_error("vkQueueSubmit failed");
     return -1;
   }
 
@@ -314,18 +312,18 @@ i32 vs_renderer_frame_end(VsRenderer *renderer, VsDevice *device,
   };
   VkResult result = vkQueuePresentKHR(device->pQueue, &presentInfo);
 
-  renderer->currentFrame = (frame + 1) % VS_MAX_FRAMES_IN_FLIGHT;
+  renderer->currentFrame = (frame + 1) % MAX_FRAMES_IN_FLIGHT;
 
   if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
     return 1;
   if (result != VK_SUCCESS) {
-    vs_log_error("vkQueuePresentKHR failed");
+    log_error("vkQueuePresentKHR failed");
     return -1;
   }
   return 0;
 }
 
-void vs_renderer_update_ubo(VsRenderer *renderer, void *data, u32 size) {
+void renderer_update_ubo(Renderer *renderer, void *data) {
   u32 frame = renderer->currentFrame;
-  memcpy(renderer->uboMapped[frame], data, size);
+  memcpy(renderer->uboMapped[frame], data, renderer->uboSize);
 }

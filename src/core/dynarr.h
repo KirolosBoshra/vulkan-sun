@@ -1,8 +1,8 @@
 #ifndef DYNARR_H
 #define DYNARR_H
 
-#include "logger.h"
 #include "utils/globals.h"
+#include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,14 +11,20 @@
 #define ARR_GROW_FACTOR 2
 
 #define DYNARR_INIT(arr, T) da_init(arr, sizeof(T))
+
 #define DYNARR_PUSH(arr, T) ((T *)da_push(arr))
+
 #define DYNARR_GET(arr, i, T) ((T *)da_get(arr, i))
+
 #define DYNARR_LAST(arr, T)                                                    \
   ((arr)->count > 0 ? (T *)da_get(arr, (arr)->count - 1) : NULL)
+
 #define DYNARR_FOREACH(arr, T, var)                                            \
   if ((arr)->count > 0)                                                        \
     for (T *var = (T *)(arr)->data; var < (T *)(arr)->data + (arr)->count;     \
          var++)
+
+#define DYNARR_FOREACH_INDEX(arr, T, i) for (usize i = 0; i < (arr)->count; ++i)
 
 typedef struct {
   void *data;
@@ -45,7 +51,7 @@ static inline bool da_grow(DynArr *arr) {
   usize newCap = arr->cap == 0 ? ARR_INIT_CAP : arr->cap * ARR_GROW_FACTOR;
   void *tmp = realloc(arr->data, newCap * arr->elemSize);
   if (!tmp) {
-    vs_log_error("failed to grow dynamic array");
+    assert(0 && "failed to grow dynamic array");
     return false;
   }
   arr->data = tmp;
@@ -63,7 +69,7 @@ static inline void *da_push(DynArr *arr) {
 
 static inline void da_pop(DynArr *arr) {
   if (arr->count == 0) {
-    vs_log_warn("attempted to pop from empty dynamic array");
+    assert(0 && "attempted to pop from empty dynamic array");
     return;
   }
 
@@ -78,9 +84,7 @@ static inline void *da_get(DynArr *arr, usize index) {
 
 static inline void *da_insert(DynArr *arr, usize index) {
   if (index > arr->count) {
-    vs_log_warn(
-        "attempted to insert at index %zu in dynamic array of length %zu",
-        index, arr->count);
+    assert(0 && "attempted to insert at invalid index in dynamic array");
     return NULL;
   }
   if (arr->count >= arr->cap && !da_grow(arr))
@@ -94,9 +98,7 @@ static inline void *da_insert(DynArr *arr, usize index) {
 
 static inline void da_remove(DynArr *arr, usize index) {
   if (index >= arr->count) {
-    vs_log_warn(
-        "attempted to remove at index %zu in dynamic array of length %zu",
-        index, arr->count);
+    assert(0 && "attempted to remove at invalid index in dynamic array");
     return;
   }
 

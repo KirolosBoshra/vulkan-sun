@@ -9,10 +9,10 @@
 typedef struct {
   VkDescriptorType type;
   f32 ratio;
-} VsPoolSizeRatio;
+} PoolSizeRatio;
 
 typedef struct {
-  VsPoolSizeRatio *ratios;
+  PoolSizeRatio *ratios;
   u32 ratioCount;
   u32 setsPerPool;
 
@@ -23,27 +23,27 @@ typedef struct {
   VkDescriptorPool *fullPools;
   u32 fullCount;
   u32 fullCap;
-} VsDescriptorAllocator;
+} DescriptorAllocator;
 
-void vs_desc_alloc_init(VsDescriptorAllocator *a, u32 initialSets,
-                        VsPoolSizeRatio *ratios, u32 ratioCount);
-void vs_desc_alloc_destroy(VsDescriptorAllocator *a, VkDevice device);
-void vs_desc_alloc_clear(VsDescriptorAllocator *a, VkDevice device);
-VkDescriptorSet vs_desc_alloc_allocate(VsDescriptorAllocator *a,
+void desc_alloc_init(DescriptorAllocator *a, u32 initialSets,
+                        PoolSizeRatio *ratios, u32 ratioCount);
+void desc_alloc_destroy(DescriptorAllocator *a, VkDevice device);
+void desc_alloc_clear(DescriptorAllocator *a, VkDevice device);
+VkDescriptorSet desc_alloc_allocate(DescriptorAllocator *a,
                                        VkDevice device,
                                        VkDescriptorSetLayout layout);
 
 typedef struct {
   VkDescriptorSetLayoutBinding *binds;
   u32 count;
-} VsDescriptorLayoutBuilder;
+} DescriptorLayoutBuilder;
 
-void vs_desc_layout_init(VsDescriptorLayoutBuilder *b);
-void vs_desc_layout_add(VsDescriptorLayoutBuilder *b, u32 binding,
+void desc_layout_init(DescriptorLayoutBuilder *b);
+void desc_layout_add(DescriptorLayoutBuilder *b, u32 binding,
                         VkDescriptorType type, VkShaderStageFlags stage);
-VkDescriptorSetLayout vs_desc_layout_build(VsDescriptorLayoutBuilder *b,
+VkDescriptorSetLayout desc_layout_build(DescriptorLayoutBuilder *b,
                                            VkDevice device);
-void vs_desc_layout_cleanup(VsDescriptorLayoutBuilder *b);
+void desc_layout_cleanup(DescriptorLayoutBuilder *b);
 
 // Lightweight: use local arrays or caller-provided storage, no dynamic allocs.
 
@@ -55,19 +55,19 @@ typedef struct {
   u32 bufferCount;
   u32 imageCount;
   u32 maxWrites;
-} VsDescriptorWriter;
+} DescriptorWriter;
 
-void vs_desc_writer_init(VsDescriptorWriter *w,
+void desc_writer_init(DescriptorWriter *w,
                          VkDescriptorBufferInfo *bufInfos,
                          VkDescriptorImageInfo *imgInfos,
                          VkWriteDescriptorSet *writes, u32 maxWrites);
-void vs_desc_writer_write_buffer(VsDescriptorWriter *w, u32 binding,
+void desc_writer_write_buffer(DescriptorWriter *w, u32 binding,
                                  VkBuffer buffer, usize size, usize offset,
                                  VkDescriptorType type);
-void vs_desc_writer_write_image(VsDescriptorWriter *w, u32 binding,
+void desc_writer_write_image(DescriptorWriter *w, u32 binding,
                                 VkImageView imageView, VkSampler sampler,
                                 VkImageLayout layout, VkDescriptorType type);
-void vs_desc_writer_update(VsDescriptorWriter *w, VkDevice device,
+void desc_writer_update(DescriptorWriter *w, VkDevice device,
                            VkDescriptorSet set);
 
 #endif

@@ -1,11 +1,11 @@
 #include "descriptor.h"
-#include "logger.h"
+#include "core/logger.h"
 #include <stdlib.h>
 
-void vs_desc_alloc_init(VsDescriptorAllocator *a, u32 initialSets,
-                        VsPoolSizeRatio *ratios, u32 ratioCount) {
+void desc_alloc_init(DescriptorAllocator *a, u32 initialSets,
+                        PoolSizeRatio *ratios, u32 ratioCount) {
   a->ratioCount = ratioCount;
-  a->ratios = malloc(ratioCount * sizeof(VsPoolSizeRatio));
+  a->ratios = malloc(ratioCount * sizeof(PoolSizeRatio));
   for (u32 i = 0; i < ratioCount; i++)
     a->ratios[i] = ratios[i];
 
@@ -19,7 +19,7 @@ void vs_desc_alloc_init(VsDescriptorAllocator *a, u32 initialSets,
   a->fullPools = malloc(a->fullCap * sizeof(VkDescriptorPool));
 }
 
-void vs_desc_alloc_destroy(VsDescriptorAllocator *a, VkDevice device) {
+void desc_alloc_destroy(DescriptorAllocator *a, VkDevice device) {
   for (u32 i = 0; i < a->readyCount; i++)
     vkDestroyDescriptorPool(device, a->readyPools[i], NULL);
   for (u32 i = 0; i < a->fullCount; i++)
@@ -29,7 +29,7 @@ void vs_desc_alloc_destroy(VsDescriptorAllocator *a, VkDevice device) {
   free(a->ratios);
 }
 
-void vs_desc_alloc_clear(VsDescriptorAllocator *a, VkDevice device) {
+void desc_alloc_clear(DescriptorAllocator *a, VkDevice device) {
   for (u32 i = 0; i < a->readyCount; i++)
     vkResetDescriptorPool(device, a->readyPools[i], 0);
   for (u32 i = 0; i < a->fullCount; i++) {
@@ -45,7 +45,7 @@ void vs_desc_alloc_clear(VsDescriptorAllocator *a, VkDevice device) {
 }
 
 static VkDescriptorPool create_pool(VkDevice device, u32 setCount,
-                                    VsPoolSizeRatio *ratios, u32 ratioCount) {
+                                    PoolSizeRatio *ratios, u32 ratioCount) {
   VkDescriptorPoolSize *sizes =
       malloc(ratioCount * sizeof(VkDescriptorPoolSize));
   for (u32 i = 0; i < ratioCount; i++)
@@ -63,14 +63,14 @@ static VkDescriptorPool create_pool(VkDevice device, u32 setCount,
 
   VkDescriptorPool pool;
   if (vkCreateDescriptorPool(device, &info, NULL, &pool) != VK_SUCCESS) {
-    vs_log_error("failed to create descriptor pool");
+    log_error("failed to create descriptor pool");
     pool = VK_NULL_HANDLE;
   }
   free(sizes);
   return pool;
 }
 
-static VkDescriptorPool get_pool(VsDescriptorAllocator *a, VkDevice device) {
+static VkDescriptorPool get_pool(DescriptorAllocator *a, VkDevice device) {
   if (a->readyCount > 0) {
     VkDescriptorPool p = a->readyPools[--a->readyCount];
     return p;
@@ -84,7 +84,7 @@ static VkDescriptorPool get_pool(VsDescriptorAllocator *a, VkDevice device) {
   return p;
 }
 
-VkDescriptorSet vs_desc_alloc_allocate(VsDescriptorAllocator *a,
+VkDescriptorSet desc_alloc_allocate(DescriptorAllocator *a,
                                        VkDevice device,
                                        VkDescriptorSetLayout layout) {
   VkDescriptorPool pool = get_pool(a, device);
@@ -112,7 +112,7 @@ VkDescriptorSet vs_desc_alloc_allocate(VsDescriptorAllocator *a,
     allocInfo.descriptorPool = pool;
 
     if (vkAllocateDescriptorSets(device, &allocInfo, &set) != VK_SUCCESS) {
-      vs_log_error("descriptor allocation failed after pool retry");
+      log_error("descriptor allocation failed after pool retry");
       return VK_NULL_HANDLE;
     }
   }
@@ -126,12 +126,12 @@ VkDescriptorSet vs_desc_alloc_allocate(VsDescriptorAllocator *a,
   return set;
 }
 
-void vs_desc_layout_init(VsDescriptorLayoutBuilder *b) {
+void desc_layout_init(DescriptorLayoutBuilder *b) {
   b->count = 0;
   b->binds = NULL;
 }
 
-void vs_desc_layout_add(VsDescriptorLayoutBuilder *b, u32 binding,
+void desc_layout_add(DescriptorLayoutBuilder *b, u32 binding,
                         VkDescriptorType type, VkShaderStageFlags stage) {
   u32 idx = b->count++;
   b->binds = realloc(b->binds, b->count * sizeof(VkDescriptorSetLayoutBinding));
@@ -143,7 +143,7 @@ void vs_desc_layout_add(VsDescriptorLayoutBuilder *b, u32 binding,
   };
 }
 
-VkDescriptorSetLayout vs_desc_layout_build(VsDescriptorLayoutBuilder *b,
+VkDescriptorSetLayout desc_layout_build(DescriptorLayoutBuilder *b,
                                            VkDevice device) {
   VkDescriptorSetLayoutCreateInfo info = {
       .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -153,19 +153,19 @@ VkDescriptorSetLayout vs_desc_layout_build(VsDescriptorLayoutBuilder *b,
 
   VkDescriptorSetLayout layout;
   if (vkCreateDescriptorSetLayout(device, &info, NULL, &layout) != VK_SUCCESS) {
-    vs_log_error("failed to create descriptor set layout");
+    log_error("failed to create descriptor set layout");
     return VK_NULL_HANDLE;
   }
   return layout;
 }
 
-void vs_desc_layout_cleanup(VsDescriptorLayoutBuilder *b) {
+void desc_layout_cleanup(DescriptorLayoutBuilder *b) {
   free(b->binds);
   b->binds = NULL;
   b->count = 0;
 }
 
-void vs_desc_writer_init(VsDescriptorWriter *w,
+void desc_writer_init(DescriptorWriter *w,
                           VkDescriptorBufferInfo *bufInfos,
                           VkDescriptorImageInfo *imgInfos,
                           VkWriteDescriptorSet *writes, u32 maxWrites) {
@@ -178,7 +178,7 @@ void vs_desc_writer_init(VsDescriptorWriter *w,
   w->maxWrites = maxWrites;
 }
 
-void vs_desc_writer_write_buffer(VsDescriptorWriter *w, u32 binding,
+void desc_writer_write_buffer(DescriptorWriter *w, u32 binding,
                                   VkBuffer buffer, usize size, usize offset,
                                   VkDescriptorType type) {
   if (w->writeCount >= w->maxWrites) return;
@@ -203,7 +203,7 @@ void vs_desc_writer_write_buffer(VsDescriptorWriter *w, u32 binding,
   w->bufferCount++;
 }
 
-void vs_desc_writer_write_image(VsDescriptorWriter *w, u32 binding,
+void desc_writer_write_image(DescriptorWriter *w, u32 binding,
                                  VkImageView imageView, VkSampler sampler,
                                  VkImageLayout layout, VkDescriptorType type) {
   if (w->writeCount >= w->maxWrites) return;
@@ -229,7 +229,7 @@ void vs_desc_writer_write_image(VsDescriptorWriter *w, u32 binding,
   w->imageCount++;
 }
 
-void vs_desc_writer_update(VsDescriptorWriter *w, VkDevice device,
+void desc_writer_update(DescriptorWriter *w, VkDevice device,
                            VkDescriptorSet set) {
   for (u32 i = 0; i < w->writeCount; i++)
     w->writes[i].dstSet = set;
