@@ -1,6 +1,7 @@
 # Vulkan Sun
 ![Logo](./assets/logo.png)
-A work-in-progress Vulkan-based 3D simulation of the solar system, with a custom math library, dynamic arrays, camera, descriptor pools, and push constants.
+
+A work-in-progress Vulkan-based mini game engine that will be used for the simulation of the solar system, with everything built from scratch
 
 ## Build
 
