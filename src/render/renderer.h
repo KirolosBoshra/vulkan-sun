@@ -4,11 +4,11 @@
 
 #include "descriptor.h"
 #include "device.h"
-#include "types/mesh.h"
 #include "pipeline.h"
 #include "swapchain.h"
-#include "utils/color.h"
+#include "types/mesh.h"
 #include "types/types.h"
+#include "utils/color.h"
 
 #define MAX_FRAMES_IN_FLIGHT 2
 
@@ -21,6 +21,7 @@ typedef struct {
   DescriptorAllocator descAlloc;
   DescriptorAllocator transientAlloc;
   VkDescriptorSetLayout sceneLayout;
+  VkDescriptorSetLayout imageLayout;
   VkDescriptorSet sceneSets[MAX_FRAMES_IN_FLIGHT];
   Buffer uboBuffers[MAX_FRAMES_IN_FLIGHT];
   void *uboMapped[MAX_FRAMES_IN_FLIGHT];
@@ -36,13 +37,17 @@ void renderer_destroy(Renderer *renderer, Device *device);
 void renderer_set_clear_color(Renderer *renderer, Color color);
 
 i32 renderer_frame_begin(Renderer *renderer, Device *device,
-                            Swapchain *swapchain, VkClearValue clearColor);
-void renderer_push_constants(Renderer *renderer, Pipeline *pipeline, void *data);
+                         Swapchain *swapchain, VkClearValue clearColor);
+void renderer_push_constants(Renderer *renderer, Pipeline *pipeline,
+                             void *data);
 void renderer_draw(Renderer *renderer, Pipeline *pipeline, VkExtent2D extent);
 void renderer_draw_mesh(Renderer *renderer, Pipeline *pipeline,
                            Mesh *mesh, VkExtent2D extent);
+void renderer_draw_mesh_textured(Renderer *renderer, Pipeline *pipeline,
+                                    Mesh *mesh, VkExtent2D extent,
+                                    VkDescriptorSet texSet);
 void renderer_update_ubo(Renderer *renderer, void *data);
 i32 renderer_frame_end(Renderer *renderer, Device *device,
-                          Swapchain *swapchain);
+                       Swapchain *swapchain);
 
 #endif

@@ -46,7 +46,8 @@ target_include_directories(vulkan_sun PRIVATE src ${GLFW_INCLUDE_DIR})
 target_link_libraries(vulkan_sun PRIVATE Vulkan::Vulkan ${GLFW_LIBRARY} gdi32)
 target_compile_definitions(vulkan_sun PRIVATE
     $<$<CONFIG:Debug>:LOGGING>
-    SHADER_DIR="${CMAKE_CURRENT_BINARY_DIR}")
+    SHADER_DIR="${CMAKE_CURRENT_BINARY_DIR}"
+    ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
 
 file(GLOB SHADER_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_SOURCE_DIR}/shaders/*.vert"
@@ -128,8 +129,24 @@ if(VS_BUILD_TESTS)
                             gdi32)
     add_test(NAME resource COMMAND test_resource)
 
+    add_executable(test_depng tests/test_depng.c)
+    target_include_directories(test_depng PRIVATE src)
+    target_link_libraries(test_depng PRIVATE m)
+    target_compile_definitions(test_depng PRIVATE
+        ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
+    add_test(NAME depng COMMAND test_depng)
+
+    add_executable(test_texture tests/test_texture.c ${LIB_SOURCES})
+    target_include_directories(test_texture PRIVATE src ${Vulkan_INCLUDE_DIRS}
+                                ${GLFW_INCLUDE_DIR})
+    target_link_libraries(test_texture PRIVATE Vulkan::Vulkan ${GLFW_LIBRARY}
+                            gdi32)
+    target_compile_definitions(test_texture PRIVATE
+        ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
+    add_test(NAME texture COMMAND test_texture)
+
     add_custom_target(check
         COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIG> --output-on-failure
         USES_TERMINAL)
-    add_dependencies(check test_math test_dynarr test_camera test_vertex test_buffer test_resource)
+    add_dependencies(check test_math test_dynarr test_camera test_vertex test_buffer test_resource test_depng test_texture)
 endif()

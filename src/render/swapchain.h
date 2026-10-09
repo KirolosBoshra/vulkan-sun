@@ -3,7 +3,7 @@
 
 #include "device.h"
 #include "utils/globals.h"
-#include "types/types.h"
+#include "types/image.h"
 #include <vulkan/vulkan.h>
 
 typedef struct {
@@ -15,7 +15,7 @@ typedef struct {
   u32 count;
   VkDevice device;
   VkSurfaceKHR surface;
-  DepthImage depth;
+  Image depth;
 } Swapchain;
 
 Swapchain *swapchain_create(Device *device, VkSurfaceKHR surface,

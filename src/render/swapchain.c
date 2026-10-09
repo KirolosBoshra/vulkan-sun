@@ -141,8 +141,12 @@ static i32 swapchain_build(Swapchain *sc, Device *device, u32 width,
     return -1;
   }
 
-  sc->depth =
-      create_depth_image(device->device, device->physical, sc->extent);
+  sc->depth = image_create(device,
+      (VkExtent3D){.width = sc->extent.width, .height = sc->extent.height, .depth = 1},
+      VK_FORMAT_D32_SFLOAT,
+      VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+      VK_IMAGE_ASPECT_DEPTH_BIT,
+      1);
   if (!sc->depth.image) {
     log_error("failed to create depth image");
     for (u32 i = 0; i < sc->count; i++)
@@ -195,7 +199,7 @@ void swapchain_recreate(Swapchain *sc, Device *device, u32 width,
   sc->images = NULL;
   sc->views = NULL;
 
-  destroy_depth_image(sc->device, &sc->depth);
+  image_destroy(&sc->depth, sc->device);
 
   VkSwapchainKHR old = sc->handle;
   sc->handle = VK_NULL_HANDLE;
@@ -212,7 +216,7 @@ void swapchain_destroy(Swapchain *sc) {
   for (u32 i = 0; i < sc->count; i++)
     vkDestroyImageView(sc->device, sc->views[i], NULL);
   vkDestroySwapchainKHR(sc->device, sc->handle, NULL);
-  destroy_depth_image(sc->device, &sc->depth);
+  image_destroy(&sc->depth, sc->device);
   free(sc->images);
   free(sc->views);
   free(sc);

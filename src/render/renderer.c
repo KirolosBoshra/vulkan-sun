@@ -3,36 +3,9 @@
 #include "core/logger.h"
 #include "utils/globals.h"
 #include "types/types.h"
+#include "types/image.h"
 #include <stdlib.h>
 #include <string.h>
-
-static void image_barrier(VkCommandBuffer cmd, VkImage image,
-                          VkImageLayout from, VkImageLayout to,
-                          VkImageAspectFlags aspect) {
-  VkImageMemoryBarrier2 b = {
-      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-      .srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-      .srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
-      .dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-      .dstAccessMask =
-          VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
-      .oldLayout = from,
-      .newLayout = to,
-      .image = image,
-      .subresourceRange =
-          {
-              .aspectMask = aspect,
-              .levelCount = 1,
-              .layerCount = 1,
-          },
-  };
-  VkDependencyInfo dep = {
-      .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-      .imageMemoryBarrierCount = 1,
-      .pImageMemoryBarriers = &b,
-  };
-  vkCmdPipelineBarrier2(cmd, &dep);
-}
 
 static void set_viewport_scissor(VkCommandBuffer cmd, VkExtent2D extent) {
   VkViewport vp = {0, 0, (f32)extent.width, (f32)extent.height, 0, 1};
@@ -55,7 +28,8 @@ Renderer *renderer_create(Device *device, u32 uboSize) {
 
   DescriptorAllocator *descAlloc = &r->descAlloc;
   PoolSizeRatio ratios[] = {
-      {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .ratio = 0.5f}};
+      {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .ratio = 1.0f},
+      {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .ratio = 2.0f}};
 
   desc_alloc_init(descAlloc, 8, ratios, sizeof(ratios) / sizeof(*ratios));
   desc_alloc_init(&r->transientAlloc, 8, ratios,
@@ -66,6 +40,12 @@ Renderer *renderer_create(Device *device, u32 uboSize) {
   desc_layout_add(&layoutBuilder, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                      VK_SHADER_STAGE_VERTEX_BIT);
   r->sceneLayout = desc_layout_build(&layoutBuilder, device->device);
+  desc_layout_cleanup(&layoutBuilder);
+
+  desc_layout_init(&layoutBuilder);
+  desc_layout_add(&layoutBuilder, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                     VK_SHADER_STAGE_FRAGMENT_BIT);
+  r->imageLayout = desc_layout_build(&layoutBuilder, device->device);
   desc_layout_cleanup(&layoutBuilder);
 
   VkCommandPoolCreateInfo poolInfo = {
@@ -154,6 +134,7 @@ void renderer_destroy(Renderer *renderer, Device *device) {
     destroy_buffer(&renderer->uboBuffers[i], device->device);
   }
   vkDestroyCommandPool(device->device, renderer->cmdPool, NULL);
+  vkDestroyDescriptorSetLayout(device->device, renderer->imageLayout, NULL);
   desc_alloc_destroy(&renderer->transientAlloc, device->device);
   desc_alloc_destroy(&renderer->descAlloc, device->device);
   free(renderer);
@@ -197,13 +178,13 @@ i32 renderer_frame_begin(Renderer *renderer, Device *device,
   };
   vkBeginCommandBuffer(cmd, &beginInfo);
 
-  image_barrier(cmd, swapchain->images[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED,
-                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                VK_IMAGE_ASPECT_COLOR_BIT);
+  transition_image_layout(cmd, swapchain->images[imageIndex], swapchain->format,
+                          VK_IMAGE_LAYOUT_UNDEFINED,
+                          VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-  image_barrier(cmd, swapchain->depth.image, VK_IMAGE_LAYOUT_UNDEFINED,
-                VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
-                VK_IMAGE_ASPECT_DEPTH_BIT);
+  transition_image_layout(cmd, swapchain->depth.image, VK_FORMAT_D32_SFLOAT,
+                          VK_IMAGE_LAYOUT_UNDEFINED,
+                          VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
   VkClearValue depthClear = {.depthStencil = {.depth = 1.0f}};
 
@@ -270,6 +251,25 @@ void renderer_draw_mesh(Renderer *renderer, Pipeline *pipeline, Mesh *mesh,
   vkCmdDrawIndexed(cmd, mesh->indexCount, 1, 0, 0, 0);
 }
 
+void renderer_draw_mesh_textured(Renderer *renderer, Pipeline *pipeline,
+                                    Mesh *mesh, VkExtent2D extent,
+                                    VkDescriptorSet texSet) {
+  u32 frame = renderer->currentFrame;
+  VkCommandBuffer cmd = renderer->cmdBufs[frame];
+  VkDeviceSize offset = 0;
+
+  set_viewport_scissor(cmd, extent);
+  vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          pipeline->layout, 0, 1, &renderer->sceneSets[frame],
+                          0, NULL);
+  vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          pipeline->layout, 1, 1, &texSet, 0, NULL);
+  vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->handle);
+  vkCmdBindVertexBuffers(cmd, 0, 1, &mesh->vertexBuffer.buffer, &offset);
+  vkCmdBindIndexBuffer(cmd, mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+  vkCmdDrawIndexed(cmd, mesh->indexCount, 1, 0, 0, 0);
+}
+
 i32 renderer_frame_end(Renderer *renderer, Device *device,
                           Swapchain *swapchain) {
   u32 frame = renderer->currentFrame;
@@ -278,9 +278,9 @@ i32 renderer_frame_end(Renderer *renderer, Device *device,
 
   vkCmdEndRendering(cmd);
 
-  image_barrier(cmd, swapchain->images[imageIndex],
-                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_ASPECT_COLOR_BIT);
+  transition_image_layout(cmd, swapchain->images[imageIndex], swapchain->format,
+                          VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                          VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
   vkEndCommandBuffer(cmd);
 

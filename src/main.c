@@ -56,17 +56,32 @@ i32 main(void) {
   if (backgroundIdx < 0)
     FAIL(app, window, "failed to create background pipeline");
 
+  VkDescriptorSetLayout texLayouts[] = {app->renderer->imageLayout};
+  i32 texturedIdx = add_pipeline_ex(
+      app, SHADER_DIR "/cube.vert.spv", SHADER_DIR "/textured.frag.spv",
+      (u32)sizeof(ModelPush), texLayouts, 1, true);
+  log_info("textured pipeline index: %d", texturedIdx);
+  if (texturedIdx < 0)
+    FAIL(app, window, "failed to create textured pipeline");
+
+  Texture logoTex = load_texture(app, ASSETS_DIR "/logo.png");
+  if (logoTex.image == INVALID_HANDLE)
+    FAIL(app, window, "failed to load logo texture");
+
+  VkDescriptorSet logoSet = texture_bind(app, &logoTex);
+  if (logoSet == VK_NULL_HANDLE)
+    FAIL(app, window, "failed to bind logo texture");
+
   Vertex cubeVerts[] = {CUBE_VERTICES};
   u32 cubeIndices[] = CUBE_INDICES;
   MeshHandle cubeHandle =
-      resource_upload_mesh(app->resources, app->device, cubeVerts,
-                           sizeof(cubeVerts) / sizeof(Vertex), cubeIndices,
-                           sizeof(cubeIndices) / sizeof(u32));
+      upload_mesh(app, cubeVerts, sizeof(cubeVerts) / sizeof(Vertex),
+                  cubeIndices, sizeof(cubeIndices) / sizeof(u32));
   if (cubeHandle == INVALID_HANDLE)
     FAIL(app, window, "failed to upload cube mesh");
 
   Model cubeModel = model_create(cubeHandle);
-  cubeModel.color = COLOR_SKYBLUE;
+  cubeModel.color = COLOR_WHITE;
   Model smallModel = model_create(cubeHandle);
   smallModel.color = COLOR_RED;
   smallModel.transform = mat4_translate(
@@ -103,7 +118,7 @@ i32 main(void) {
     update_ubo(app, &vp);
 
     cubeModel.transform = mat4_rotate_y(MAT4_IDENTITY, t * 0.5f);
-    draw_model(app, cubeIdx, &cubeModel);
+    draw_model_textured(app, texturedIdx, &cubeModel, logoSet);
 
     draw_model(app, cubeIdx, &smallModel);
 

@@ -20,12 +20,6 @@ typedef struct {
   usize size;
 } Buffer;
 
-typedef struct {
-  VkImage image;
-  VkDeviceMemory memory;
-  VkImageView view;
-} DepthImage;
-
 Buffer create_buffer(usize size, Device *device, VkBufferUsageFlags usage,
                         VkMemoryPropertyFlags properties);
 
@@ -35,9 +29,5 @@ void copy_buffer(Device *device, VkBuffer src, VkBuffer dst, usize size);
 
 u32 find_memory_type(VkPhysicalDevice physical, u32 typeBits,
                         VkMemoryPropertyFlags props);
-
-DepthImage create_depth_image(VkDevice device, VkPhysicalDevice physical,
-                                 VkExtent2D extent);
-void destroy_depth_image(VkDevice device, DepthImage *di);
 
 #endif
