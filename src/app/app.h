@@ -27,10 +27,14 @@ typedef struct {
   Texture defaultChecker;
   VkSampler samplerNearest;
   VkSampler samplerLinear;
+  VkSampler samplerNearestClamp;
+  VkSampler samplerLinearClamp;
 } App;
 
 App *app_create(const char *name, u32 version);
 void app_setup(App *app, VkSurfaceKHR surface, u32 width, u32 height);
+void app_init_samplers(App *app);
+void app_init_default_texture(App *app);
 void app_destroy(App *app);
 const char *app_gpu_name(App *app);
 

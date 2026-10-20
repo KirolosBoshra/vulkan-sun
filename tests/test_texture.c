@@ -27,16 +27,16 @@ int main(void) {
   app->resources = create_resource_manager();
   assert(app->resources);
 
-  VkSamplerCreateInfo sampl = {.sType =
-                                   VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
-  sampl.magFilter = VK_FILTER_NEAREST;
-  sampl.minFilter = VK_FILTER_NEAREST;
-  assert(vkCreateSampler(device->device, &sampl, NULL,
-                         &app->samplerNearest) == VK_SUCCESS);
-  sampl.magFilter = VK_FILTER_LINEAR;
-  sampl.minFilter = VK_FILTER_LINEAR;
-  assert(vkCreateSampler(device->device, &sampl, NULL,
-                         &app->samplerLinear) == VK_SUCCESS);
+  app_init_samplers(app);
+  assert(app->samplerNearest != VK_NULL_HANDLE);
+  assert(app->samplerLinear != VK_NULL_HANDLE);
+  assert(app->samplerNearestClamp != VK_NULL_HANDLE);
+  assert(app->samplerLinearClamp != VK_NULL_HANDLE);
+
+  app_init_default_texture(app);
+  assert(app->defaultChecker.image != INVALID_HANDLE);
+  assert(app->defaultChecker.width == 16 && app->defaultChecker.height == 16);
+  assert(app->defaultChecker.filter == TEX_FILTER_NEAREST);
 
   // Test 1: image_create produces a valid sampled image
   Image img = image_create(device, (VkExtent3D){2, 2, 1},
@@ -47,6 +47,7 @@ int main(void) {
   assert(img.view != VK_NULL_HANDLE);
   assert(img.format == VK_FORMAT_R8G8B8A8_SRGB);
   assert(img.extent.width == 2 && img.extent.height == 2);
+  assert(img.mipLevels == 1);
 
   // Test 2: image_create_from_data uploads pixels
   u8 pixels[2 * 2 * 4] = {255, 0, 255, 255, 0,   0,   0,   255,
@@ -90,17 +91,18 @@ int main(void) {
       VK_FORMAT_R8G8B8A8_SRGB, 1);
   assert(h2 == h1);
 
-  // Test 6: create_texture fills dims from the image
+  // Test 6: create_texture fills dims and mip count from the image
   Texture tex = create_texture(app, h2);
   assert(tex.image == h2);
   assert(tex.width == 2 && tex.height == 2);
+  assert(tex.mipLevels == 1);
 
   // Test 7: load_texture end-to-end
   Texture logo_tex = load_texture(app, ASSETS_DIR "/logo.png");
   assert(logo_tex.image != INVALID_HANDLE);
   assert(logo_tex.width == 256 && logo_tex.height == 256);
 
-  // Test 8: texture_bind produces a set for both sampler branches
+  // Test 8: texture_bind produces a set for every sampler branch
   VkDescriptorSet linear_set = texture_bind(app, &logo_tex);
   assert(linear_set != VK_NULL_HANDLE);
 
@@ -109,11 +111,35 @@ int main(void) {
   VkDescriptorSet nearest_set = texture_bind(app, &nearest_tex);
   assert(nearest_set != VK_NULL_HANDLE);
 
+  Texture clamp_tex = logo_tex;
+  clamp_tex.wrap = TEX_WRAP_CLAMP;
+  VkDescriptorSet clamp_set = texture_bind(app, &clamp_tex);
+  assert(clamp_set != VK_NULL_HANDLE);
+
+  Texture clamp_nearest_tex = clamp_tex;
+  clamp_nearest_tex.filter = TEX_FILTER_NEAREST;
+  VkDescriptorSet clamp_nearest_set = texture_bind(app, &clamp_nearest_tex);
+  assert(clamp_nearest_set != VK_NULL_HANDLE);
+
   // Test 9: texture_bind rejects bad input (INVALID_HANDLE is the
   // empty sentinel — handle 0 is valid, so {0} would bind image 0)
   Texture empty = {.image = INVALID_HANDLE};
   assert(texture_bind(app, &empty) == VK_NULL_HANDLE);
   assert(texture_bind(app, NULL) == VK_NULL_HANDLE);
+
+  // Test 10: failed loads and bad handles fall back to the checkerboard
+  Texture missing_tex = load_texture(app, ASSETS_DIR "/does_not_exist.png");
+  assert(missing_tex.image == app->defaultChecker.image);
+  assert(missing_tex.width == 16);
+
+  Texture bad_handle_tex = create_texture(app, INVALID_HANDLE);
+  assert(bad_handle_tex.image == app->defaultChecker.image);
+
+  Texture bad_handle_tex2 = create_texture(app, 999);
+  assert(bad_handle_tex2.image == app->defaultChecker.image);
+
+  // the fallback is bindable like any other texture
+  assert(texture_bind(app, &missing_tex) != VK_NULL_HANDLE);
 
   window_destroy(window);
   app_destroy(app);

@@ -60,6 +60,7 @@ Image image_create(Device *device, VkExtent3D size, VkFormat format,
 
   image.format = format;
   image.extent = size;
+  image.mipLevels = mipLevels;
 
   if (vkCreateImageView(device->device, &viewInfo, NULL, &image.view) !=
       VK_SUCCESS) {

@@ -11,6 +11,7 @@ typedef struct {
   VkImageView view;
   VkFormat format;
   VkExtent3D extent;
+  u32 mipLevels;
 } Image;
 
 Image image_create(Device *device, VkExtent3D size, VkFormat format,

@@ -22,7 +22,9 @@ App *app_create(const char *name, u32 version) {
   app->pipelineCount = 0;
   app->samplerNearest = VK_NULL_HANDLE;
   app->samplerLinear = VK_NULL_HANDLE;
-  app->defaultChecker = (Texture){0};
+  app->samplerNearestClamp = VK_NULL_HANDLE;
+  app->samplerLinearClamp = VK_NULL_HANDLE;
+  app->defaultChecker = (Texture){.image = INVALID_HANDLE};
 
   u32 extCount = 0;
   const char **extensions = glfwGetRequiredInstanceExtensions(&extCount);
@@ -95,7 +97,15 @@ void app_setup(App *app, VkSurfaceKHR surface, u32 width, u32 height) {
     return;
   }
 
-  // default checkerboard texture (16x16 pink/black)
+  app_init_samplers(app);
+  app_init_default_texture(app);
+}
+
+void app_init_default_texture(App *app) {
+  if (!app || !app->resources || !app->device)
+    return;
+
+  // fallback texture for failed loads (16x16 pink/black checker)
   u8 magenta[] = {255, 0, 255, 255};
   u8 black[] = {0, 0, 0, 255};
   u8 pixels[16 * 16 * 4];
@@ -106,22 +116,36 @@ void app_setup(App *app, VkSurfaceKHR surface, u32 width, u32 height) {
   }
 
   ImageHandle handle = upload_image(app, pixels, (VkExtent3D){16, 16, 1},
-                                    VK_FORMAT_R8G8B8A8_UNORM, 1);
+                                    VK_FORMAT_R8G8B8A8_SRGB, 1);
   app->defaultChecker = create_texture(app, handle);
   app->defaultChecker.filter = TEX_FILTER_NEAREST;
-  app->defaultChecker.color = COLOR_WHITE;
+}
 
-  // default samplers
+void app_init_samplers(App *app) {
+  if (!app || !app->device)
+    return;
+
   VkSamplerCreateInfo sampl = {
       .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
   sampl.magFilter = VK_FILTER_NEAREST;
   sampl.minFilter = VK_FILTER_NEAREST;
-  vkCreateSampler(app->device->device, &sampl, NULL,
-                  &app->samplerNearest);
+  sampl.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  sampl.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  vkCreateSampler(app->device->device, &sampl, NULL, &app->samplerNearest);
 
   sampl.magFilter = VK_FILTER_LINEAR;
   sampl.minFilter = VK_FILTER_LINEAR;
   vkCreateSampler(app->device->device, &sampl, NULL, &app->samplerLinear);
+
+  sampl.magFilter = VK_FILTER_NEAREST;
+  sampl.minFilter = VK_FILTER_NEAREST;
+  sampl.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  sampl.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  vkCreateSampler(app->device->device, &sampl, NULL, &app->samplerNearestClamp);
+
+  sampl.magFilter = VK_FILTER_LINEAR;
+  sampl.minFilter = VK_FILTER_LINEAR;
+  vkCreateSampler(app->device->device, &sampl, NULL, &app->samplerLinearClamp);
 }
 
 void app_destroy(App *app) {
@@ -136,6 +160,8 @@ void app_destroy(App *app) {
   if (app->device) {
     vkDestroySampler(app->device->device, app->samplerNearest, NULL);
     vkDestroySampler(app->device->device, app->samplerLinear, NULL);
+    vkDestroySampler(app->device->device, app->samplerNearestClamp, NULL);
+    vkDestroySampler(app->device->device, app->samplerLinearClamp, NULL);
   }
 
   for (u32 i = 0; i < app->pipelineCount; i++)
@@ -250,40 +276,55 @@ ImageHandle create_image(App *app, VkExtent3D size, VkFormat format,
                                mipLevels);
 }
 
+// Texture used whenever a texture cannot be created or loaded.
+static Texture texture_fallback(App *app) {
+  if (app && app->defaultChecker.image != INVALID_HANDLE)
+    return app->defaultChecker;
+  return (Texture){.image = INVALID_HANDLE};
+}
+
 Texture create_texture(App *app, ImageHandle handle) {
-  Texture tex = {0};
   if (!app || !app->resources || handle == INVALID_HANDLE)
-    return tex;
+    return texture_fallback(app);
 
   Image *img = resource_get_image(app->resources, handle);
   if (!img)
-    return tex;
+    return texture_fallback(app);
 
+  Texture tex = {0};
   tex.image = handle;
   tex.width = (i32)img->extent.width;
   tex.height = (i32)img->extent.height;
-  tex.mipLevels = 1;
+  tex.mipLevels = img->mipLevels;
   tex.filter = TEX_FILTER_LINEAR;
   tex.wrap = TEX_WRAP_REPEAT;
   return tex;
 }
 
 Texture load_texture(App *app, const char *path) {
-  Texture tex = {0};
   if (!app || !app->resources || !app->device || !path)
-    return tex;
+    return texture_fallback(app);
 
   Image img = image_load(app->device, path);
-  if (!img.image)
-    return tex;
+  if (!img.image) {
+    log_warn("using the default texture, '%s' could not be loaded", path);
+    return texture_fallback(app);
+  }
 
   ImageHandle handle = store_image(app->resources, img);
   if (handle == INVALID_HANDLE) {
     image_destroy(&img, app->device->device);
-    return tex;
+    return texture_fallback(app);
   }
 
   return create_texture(app, handle);
+}
+
+static VkSampler sampler_for(App *app, TexFilter filter, TexWrap wrap) {
+  if (wrap == TEX_WRAP_CLAMP)
+    return filter == TEX_FILTER_NEAREST ? app->samplerNearestClamp
+                                         : app->samplerLinearClamp;
+  return filter == TEX_FILTER_NEAREST ? app->samplerNearest : app->samplerLinear;
 }
 
 VkDescriptorSet texture_bind(App *app, Texture *tex) {
@@ -295,8 +336,7 @@ VkDescriptorSet texture_bind(App *app, Texture *tex) {
   if (!img)
     return VK_NULL_HANDLE;
 
-  VkSampler sampler = tex->filter == TEX_FILTER_NEAREST ? app->samplerNearest
-                                                        : app->samplerLinear;
+  VkSampler sampler = sampler_for(app, tex->filter, tex->wrap);
 
   VkDescriptorSet set =
       desc_alloc_allocate(&app->renderer->descAlloc, app->device->device,
